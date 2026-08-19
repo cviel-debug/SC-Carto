@@ -202,10 +202,9 @@ Deux boutons sur la fiche « Fichier prêt » :
   **Modifier les actions**, puis on la réactive.
 * **Enregistrer** dépose le fichier dans l'application *Fichiers*.
 
-**Le réglage qui supprime la corvée**, à faire une fois :
-`Réglages ▸ Safari ▸ Téléchargements` → choisir un dossier **Dropbox**.
-Le bouton *Enregistrer* y dépose alors le fichier directement, sans aucun menu,
-et le PC le voit arriver par la synchronisation Dropbox.
+> À ne pas faire : changer `Réglages ▸ Safari ▸ Téléchargements` pour pointer sur
+> Dropbox. Ce réglage est **global** — tout ce que Safari téléchargerait ensuite,
+> pièces jointes comprises, se déverserait dans le Dropbox de l'agence.
 
 Dans l'autre sens (le plan qui descend sur le téléphone) : déposer le `.svg` dans
 Dropbox, puis *Réglages ▸ Importer un fond de plan ▸ Parcourir ▸ Dropbox*.
