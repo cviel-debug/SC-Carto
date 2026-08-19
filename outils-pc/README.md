@@ -24,6 +24,47 @@ Une seule dépendance : **ezdxf**.
 
 ---
 
+## La méthode simple : les deux icônes
+
+Sans ligne de commande. Deux fichiers `.bat` sont posés dans ce dossier ;
+**on glisse un fichier dessus** et ils font le reste.
+
+### `1 - Fabriquer le fond de plan (glisser un DXF ici).bat`
+
+Glissez le **DXF du client** sur l'icône. Une fenêtre s'ouvre, affiche les
+calques du plan et demande lesquels jeter (cotations, mobilier, axes…).
+Tapez leurs noms séparés par des virgules, Entrée.
+
+Deux fichiers apparaissent à côté du DXF :
+
+* le `.svg` → à copier sur le téléphone ;
+* le `.calage.json` → **à laisser là**, il sert au retour.
+
+Le résultat ne convient pas ? On relance en jetant d'autres calques, ça ne coûte rien.
+
+### `2 - Rendre le plan au client (glisser le JSON ici).bat`
+
+Glissez la **sauvegarde JSON** de l'application sur l'icône. La fenêtre réclame
+ensuite deux fichiers, l'un après l'autre : **glissez-les dans la fenêtre**
+(le chemin s'écrit tout seul), puis Entrée.
+
+1. le DXF d'origine ;
+2. le `.calage.json` fabriqué à l'étape précédente.
+
+Sortie : `<nom>_boites.dxf`. Le plan du client n'est pas modifié — c'est une
+copie, avec un calque en plus.
+
+> Ces deux fichiers n'ont pas d'accents dans leurs messages, et pas de
+> `chcp 65001` : sous Windows, la page de code UTF-8 empêche `set /p` de lire
+> ce qu'on tape. Ne le remettez pas.
+
+La suite de ce document décrit les mêmes outils **en ligne de commande**, pour
+les cas particuliers (choix fin des calques, taille des symboles, calage manuel).
+
+---
+
+---
+
 ## `dxf2fond.py` — DXF ➜ fond de plan SVG
 
 Aplatit la géométrie utile (lignes, polylignes, arcs, cercles, splines, blocs

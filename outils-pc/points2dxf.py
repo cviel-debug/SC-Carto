@@ -38,6 +38,13 @@ try:
 except ImportError:
     sys.exit("Bibliotheque manquante. Installez-la avec :  pip install ezdxf")
 
+# La console Windows n'encode pas tous les caracteres : un nom de site accentue
+# ne doit pas faire planter l'affichage.
+try:
+    sys.stdout.reconfigure(errors="replace")
+except Exception:
+    pass
+
 
 CALQUE = "SC_BOITES_DERIVATION"
 

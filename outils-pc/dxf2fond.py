@@ -40,6 +40,13 @@ try:
 except ImportError:
     sys.exit("Bibliotheque manquante. Installez-la avec :  pip install ezdxf")
 
+# La console Windows n'encode pas tous les caracteres : un nom de calque exotique
+# ne doit pas faire planter l'affichage.
+try:
+    sys.stdout.reconfigure(errors="replace")
+except Exception:
+    pass
+
 
 # Types d'entites systematiquement ignores : ils alourdissent sans servir de fond de plan.
 IGNORES = {"HATCH", "DIMENSION", "LEADER", "MULTILEADER", "MTEXT", "TEXT",
