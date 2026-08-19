@@ -407,6 +407,8 @@ select{-webkit-appearance:none;appearance:none;
      Tant que le calage n'est pas fait, l'application fonctionne normalement, sans GPS.</p>
     <button class="btn plein or" id="b-calage">Caler le GPS</button>
     <div style="height:10px"></div>
+    <button class="btn plein hide" id="b-detail-calage">Détail du calage</button>
+    <div style="height:10px"></div>
     <button class="btn plein rouge hide" id="b-decaler">Effacer le calage</button>
 
     <div class="rub">Projets</div>
@@ -510,10 +512,16 @@ select{-webkit-appearance:none;appearance:none;
    (« PALM Mortagne »). Le préfixe des numéros est réglable : BD- donne BD-001, BD-002…</div>
   <div class="etape"><h3>2. Le fond de plan</h3>Importez le plan depuis le téléphone (PNG, JPG ou SVG).
    Un doigt pour déplacer, deux doigts pour zoomer.</div>
-  <div class="etape"><h3>3. Le calage GPS (facultatif)</h3>Il sert uniquement à afficher votre position
-   et à pré-positionner les repères. Placez-vous <b>dehors</b> à un coin du bâtiment, pointez-le sur le
-   plan, capturez ; recommencez à l'angle opposé. Plus les deux points sont éloignés, plus le calage
-   est juste.</div>
+  <div class="etape"><h3>3. Le calage (facultatif)</h3>Il sert uniquement à afficher votre position
+   et à pré-positionner les repères. Deux méthodes, au choix :<br><br>
+   <b>① Saisir les coordonnées</b> — la plus juste. Sur l'ordinateur, clic droit dans Google Earth
+   sur deux points reconnaissables du site : il donne leurs coordonnées, vous les recopiez.
+   Rien à mesurer sur place.<br><br>
+   <b>② Mesurer au GPS</b> — vous vous placez <b>dehors</b> sur chaque point. Attention :
+   il faut <b>vraiment marcher</b> entre les deux mesures, sinon le téléphone renvoie deux fois
+   la même position et le calage est faux.<br><br>
+   Dans les deux cas, l'appli annonce la taille qu'aurait votre plan. Si ce n'est pas la
+   bonne, n'enregistrez pas.</div>
   <div class="etape"><h3>4. Poser une boîte</h3>Bouton <b>+</b>. Le repère apparaît sur votre position
    GPS si elle est connue, sinon au centre de l'écran. Faites-le glisser au bon endroit, validez,
    remplissez la fiche : statut, photos, note.</div>
@@ -872,66 +880,117 @@ function stopGPS(){
 function positionFraiche(){
   return geo.last && (Date.now()-geo.last.t)<25000 ? geo.last : null;
 }
+/* Lissage de la position affichée : le point cesse de sautiller.
+   Un écart franc (plus de 3 fois la précision annoncée) est traité comme un vrai
+   déplacement et repris d'un coup, pas lissé — sinon le point traînerait derrière. */
+function positionLissee(p){
+  var l=geo.lisse;
+  if(!l||Date.now()-l.t>12000){geo.lisse={lat:p.lat,lon:p.lon,t:Date.now()};return geo.lisse;}
+  var d=Math.hypot((p.lat-l.lat)*R_LAT,(p.lon-l.lon)*R_LON*Math.cos(p.lat*Math.PI/180));
+  var k=(d>Math.max(p.acc,10)*3)?1:0.35;
+  geo.lisse={lat:l.lat+(p.lat-l.lat)*k, lon:l.lon+(p.lon-l.lon)*k, t:Date.now()};
+  return geo.lisse;
+}
 function majGPS(){
-  var chip=$("gps-etat"), dot=$("gps-dot"), acc=$("gps-acc"), suivi=$("b-suivre");
+  var chip=$("gps-etat"), dot=$("gps-dot"), suivi=$("b-suivre");
   var c=cale();
   if(!S.ui.gpsSuivi||!navigator.geolocation){
-    chip.classList.add("hide"); dot.classList.add("hide"); acc.classList.add("hide");
+    chip.classList.add("hide"); dot.classList.add("hide"); $("gps-acc").classList.add("hide");
     suivi.classList.add("hide"); return;
   }
   chip.classList.remove("hide");
   if(!c){
     chip.className=""; chip.textContent="GPS non calé";
-    dot.classList.add("hide"); acc.classList.add("hide"); suivi.classList.add("hide");
+    dot.classList.add("hide"); $("gps-acc").classList.add("hide"); suivi.classList.add("hide");
     return;
   }
   var p=positionFraiche();
   if(!p){
     chip.className="faible";
     chip.textContent=geo.err?("GPS "+(geo.err.code===1?"refusé":"indisponible")):"Recherche GPS…";
-    dot.classList.add("hide"); acc.classList.add("hide"); suivi.classList.add("hide");
+    dot.classList.add("hide"); $("gps-acc").classList.add("hide"); suivi.classList.add("hide");
     return;
   }
+  var ps=positionLissee(p);
+  var xy=latLonVersPlan(ps.lat,ps.lon,c);
+  var dehors=FW&&(xy.x<-FW*0.2||xy.x>FW*1.2||xy.y<-FH*0.2||xy.y>FH*1.2);
   var faible=p.acc>25;
-  chip.className=faible?"faible":"ok";
-  chip.textContent=(faible?"Signal faible ± ":"GPS ± ")+Math.round(p.acc)+" m";
-  var xy=latLonVersPlan(p.lat,p.lon,c);
-  dot.classList.remove("hide"); acc.classList.remove("hide"); suivi.classList.remove("hide");
-  dot.classList.toggle("faible",faible); acc.classList.toggle("faible",faible);
+  chip.className=(dehors||faible)?"faible":"ok";
+  chip.textContent=dehors?"Vous êtes hors du plan"
+    :((faible?"Signal faible ± ":"GPS ± ")+Math.round(p.acc)+" m");
+  dot.classList.remove("hide"); suivi.classList.remove("hide");
+  dot.classList.toggle("faible",faible||dehors);
   dot.style.left=xy.x+"px"; dot.style.top=xy.y+"px";
   geo.xy=xy; majCercleGPS();
 }
 function majCercleGPS(){
   var c=cale(), p=positionFraiche(), acc=$("gps-acc");
-  if(!c||!p||!geo.xy||acc.classList.contains("hide"))return;
-  var rpx=(p.acc/(c.echelle_m_par_px||1));
-  rpx=clamp(rpx,3,Math.max(FW,FH));
+  if(!c||!p||!geo.xy||!FW){acc.classList.add("hide");return;}
+  var rpx=p.acc/(c.echelle_m_par_px||1);
+  /* Un cercle plus large que le plan lui-même n'apprend rien et masque tout :
+     on préfère ne rien dessiner. Le calage est alors probablement à refaire. */
+  if(!(rpx>0)||rpx>Math.min(FW,FH)*0.4){acc.classList.add("hide");return;}
+  acc.classList.remove("hide");
+  acc.classList.toggle("faible",p.acc>25);
   acc.style.width=(rpx*2)+"px"; acc.style.height=(rpx*2)+"px";
   acc.style.left=(geo.xy.x-rpx)+"px"; acc.style.top=(geo.xy.y-rpx)+"px";
 }
-/* moyennage sur N secondes */
+
+/* Mesure GPS moyennée, avec tri des échantillons.
+   Le piège du terrain : le téléphone ressort volontiers une position gardée en
+   mémoire — fix réseau, ou dernière position connue avant la mise en veille.
+   Une telle mesure ne bouge pas quand on marche : elle écrase l'échelle du calage
+   sans que rien ne le signale. On écarte donc ce qui est périmé ou imprécis,
+   et on patiente jusqu'à obtenir de vraies mesures satellite. */
 function capturerGPS(sec,onTick){
   return new Promise(function(res,rej){
     if(!navigator.geolocation){rej(new Error("Géolocalisation indisponible sur cet appareil"));return;}
-    var ech=[], t0=Date.now(), w=null, iv=null, fini=false;
-    function stop(){ fini=true; clearInterval(iv);
-      if(w!==null){try{navigator.geolocation.clearWatch(w);}catch(e){}} }
-    w=navigator.geolocation.watchPosition(function(p){
-      ech.push({lat:p.coords.latitude,lon:p.coords.longitude,acc:Math.max(p.coords.accuracy||30,1)});
-    },function(e){
-      if(e.code===1){stop();rej(new Error("Accès à la position refusé. Autorisez la géolocalisation."));}
-    },{enableHighAccuracy:true,maximumAge:0,timeout:sec*1000+10000});
-    iv=setInterval(function(){
-      if(fini)return;
-      if(onTick)onTick(ech.length,Math.max(0,sec-(Date.now()-t0)/1000));
-    },200);
-    setTimeout(function(){
+    var ACC_MAX=35, AGE_MAX=6000, ATTENTE_MAX=(sec+25)*1000;
+    var suiviAvant=(geo.watch!==null);
+    if(suiviAvant)stopGPS();            /* une seule source de mesure à la fois */
+    var ech=[], vus=0, motif="", t0=Date.now(), w=null, iv=null, fini=false;
+    function stop(){
+      fini=true; clearInterval(iv);
+      if(w!==null){try{navigator.geolocation.clearWatch(w);}catch(e){} w=null;}
+      if(suiviAvant&&S.ui.gpsSuivi)suivreGPS();
+    }
+    function terminer(){
       if(fini)return; stop();
-      if(!ech.length){rej(new Error("Aucun point GPS reçu. Sortez du bâtiment et réessayez."));return;}
+      if(!ech.length){
+        rej(new Error(motif||"Aucune mesure GPS exploitable. Sortez à découvert et réessayez."));
+        return;
+      }
       var sw=0,sla=0,slo=0,sa=0;
       ech.forEach(function(e){var pd=1/(e.acc*e.acc);sw+=pd;sla+=e.lat*pd;slo+=e.lon*pd;sa+=e.acc;});
-      res({lat:sla/sw,lon:slo/sw,acc:sa/ech.length,n:ech.length});
-    },sec*1000);
+      res({lat:sla/sw,lon:slo/sw,acc:sa/ech.length,n:ech.length,rejetes:vus-ech.length});
+    }
+    w=navigator.geolocation.watchPosition(function(p){
+      vus++;
+      var acc=p.coords.accuracy||999;
+      var age=Date.now()-(p.timestamp||Date.now());
+      if(age>AGE_MAX){
+        motif="Le téléphone ressort une position gardée en mémoire (datée de "+
+          Math.round(age/1000)+" s). Restez à découvert, écran allumé.";
+        return;
+      }
+      if(acc>ACC_MAX){
+        motif="Position trop imprécise (± "+Math.round(acc)+" m) : le téléphone se repère "+
+          "sur le réseau, pas sur les satellites. Sortez à découvert et patientez.";
+        return;
+      }
+      ech.push({lat:p.coords.latitude,lon:p.coords.longitude,acc:Math.max(acc,1)});
+    },function(e){
+      if(e.code===1){stop();rej(new Error("Accès à la position refusé. Autorisez la géolocalisation."));}
+      else motif="Le téléphone ne parvient pas à se localiser.";
+    },{enableHighAccuracy:true,maximumAge:0,timeout:ATTENTE_MAX});
+    iv=setInterval(function(){
+      if(fini)return;
+      var ecoule=(Date.now()-t0)/1000;
+      if(onTick)onTick(ech.length, Math.max(0,sec-ecoule), vus-ech.length, motif,
+                       ech.length?ech[ech.length-1].acc:0);
+      if(ecoule>=sec&&ech.length>=3)terminer();
+      else if(ecoule*1000>=ATTENTE_MAX)terminer();
+    },250);
   });
 }
 
@@ -1344,12 +1403,14 @@ function majReglages(){
   $("rg-nom").textContent=p.nom;
   $("rg-nb").textContent=S.points.length;
   $("rg-fond").textContent=p.fond?(p.fond.largeur+"×"+p.fond.hauteur+" px"):"aucun";
-  $("rg-calage").textContent=c?("calé — 1 px = "+(c.echelle_m_par_px<0.01?
-     (c.echelle_m_par_px*1000).toFixed(1)+" mm":c.echelle_m_par_px.toFixed(3)+" m")):"non calé";
+  $("rg-calage").textContent=c
+    ?("plan de "+fmtM(FW*c.echelle_m_par_px)+" × "+fmtM(FH*c.echelle_m_par_px))
+    :"non calé";
   $("rg-cree").textContent=fmtDate(p.cree);
   $("rg-i-nom").value=p.nom;
   $("rg-i-prefixe").value=p.prefixe||"BD-";
   $("b-decaler").classList.toggle("hide",!c);
+  $("b-detail-calage").classList.toggle("hide",!c);
   $("sw-splash").classList.toggle("on",!!S.ui.splash);
   $("sw-gps").classList.toggle("on",!!S.ui.gpsSuivi);
 }
@@ -1371,87 +1432,267 @@ function rendreProjets(){
 
 /* ========================= CALAGE : assistant ========================= */
 var cal=null;
+
+/* Lit des coordonnées écrites à la main ou collées depuis Google Earth / Maps.
+   Accepte le décimal (48.5123, 0.5512), les virgules décimales, et le
+   sexagésimal (48°30'44.4"N 0°33'4.4"E). */
+function nombreFr(s){return parseFloat(String(s).replace(",","."));}
+function bornerLatLon(lat,lon){
+  if(!isFinite(lat)||!isFinite(lon))return null;
+  if(Math.abs(lat)>90||Math.abs(lon)>180)return null;
+  return {lat:lat,lon:lon};
+}
+function lireLatLon(txt){
+  var t=String(txt||"").trim().toUpperCase().replace(/\s+/g," ");
+  if(!t)return null;
+  var dms=/(\d+(?:[.,]\d+)?)\s*[°º]\s*(?:(\d+(?:[.,]\d+)?)\s*['′’]\s*)?(?:(\d+(?:[.,]\d+)?)\s*["″”]?\s*)?([NSEOW])/g;
+  var vus=[], m;
+  while((m=dms.exec(t))){
+    var v=nombreFr(m[1])+(m[2]?nombreFr(m[2])/60:0)+(m[3]?nombreFr(m[3])/3600:0);
+    var dir=m[4];
+    if(dir==="S"||dir==="W"||dir==="O")v=-v;
+    vus.push({v:v,estLat:(dir==="N"||dir==="S")});
+  }
+  if(vus.length===2){
+    if(vus[0].estLat&&!vus[1].estLat)return bornerLatLon(vus[0].v,vus[1].v);
+    if(!vus[0].estLat&&vus[1].estLat)return bornerLatLon(vus[1].v,vus[0].v);
+    return bornerLatLon(vus[0].v,vus[1].v);
+  }
+  var nums=t.replace(/[NSEOW°º'′’"″”]/g," ").match(/-?\d+(?:[.,]\d+)?/g);
+  if(nums&&nums.length===2){
+    var la=nombreFr(nums[0]), lo=nombreFr(nums[1]);
+    if(/S/.test(t)&&la>0)la=-la;
+    if(/[WO]/.test(t)&&lo>0)lo=-lo;
+    return bornerLatLon(la,lo);
+  }
+  return null;
+}
+function fmtM(v){
+  if(!isFinite(v))return "?";
+  if(v<1)return (v*100).toFixed(0)+" cm";
+  if(v<1000)return v.toFixed(v<10?1:0)+" m";
+  return (v/1000).toFixed(2)+" km";
+}
+function fmtEchelle(s){
+  return s<0.01?((s*1000).toFixed(1)+" mm"):(s<1?s.toFixed(3)+" m":s.toFixed(2)+" m");
+}
+
 function lancerCalage(){
   if(!FW){toast("Importez d'abord un fond de plan");return;}
-  cal={etape:0,p1:null,p2:null};
+  cal={mode:null,etape:0,p1:null,p2:null,calcul:null};
   ecranCalage();
   ouvrir("sh-calage");
 }
 function ecranCalage(){
   var b=$("cal-body"), f=$("cal-bas");
+
   if(cal.etape===0){
-    b.innerHTML='<p class="info">Le calage relie le plan au GPS. Il faut <b>deux points</b> :'+
-      ' un coin de bâtiment, un poteau, un angle de clôture — quelque chose que vous savez'+
-      ' pointer précisément sur le plan.</p>'+
-      '<div class="etape"><h3>À faire</h3>1. Se placer <b>dehors</b>, dégagé, sur le premier point.<br>'+
-      '2. Le pointer sur le plan.<br>3. Capturer le GPS (5 secondes sans bouger).<br>'+
-      '4. Recommencer sur un second point, <b>le plus loin possible</b> du premier.</div>'+
-      '<p class="info">Une centaine de mètres entre les deux points donne un bon résultat.'+
-      ' En dessous de 20 m, le calage sera imprécis.</p>';
-    f.innerHTML='<button class="btn" data-cal="annuler">Plus tard</button>'+
-      '<button class="btn or" data-cal="pointer1">Commencer</button>';
+    b.innerHTML='<p class="info">Le calage relie le plan au terrain. Il faut <b>deux points</b>'+
+      ' que vous savez montrer précisément sur le plan : un coin de bâtiment, un poteau,'+
+      ' un angle de clôture. Plus ils sont éloignés l\'un de l\'autre, meilleur est le calage.</p>'+
+      '<div class="rub">Comment donner leur position ?</div>'+
+      '<div class="etape"><h3>① En saisissant les coordonnées</h3>'+
+      '<b>C\'est la méthode la plus juste</b>, et la seule qui convienne si votre plan vient de'+
+      ' Google Earth. Sur l\'ordinateur, clic droit sur un coin du bâtiment : Google Earth donne'+
+      ' ses coordonnées. Vous les recopiez ici. Aucune marche, aucune imprécision.</div>'+
+      '<div class="etape"><h3>② Avec le GPS, sur place</h3>'+
+      'Vous vous placez physiquement sur chaque point et l\'appli mesure. Pratique quand vous'+
+      ' n\'avez pas les coordonnées — mais la précision dépend du ciel dégagé, et il faut'+
+      ' <b>vraiment se déplacer</b> entre les deux mesures.</div>';
+    f.innerHTML='<button class="btn or" data-cal="mode-saisie">① Saisir</button>'+
+      '<button class="btn" data-cal="mode-gps">② GPS</button>';
+
   }else if(cal.etape===1||cal.etape===3){
     var n=(cal.etape===1)?1:2;
     var p=(n===1)?cal.p1:cal.p2;
-    b.innerHTML='<div class="etape"><h3>Point '+n+' — capture GPS</h3>'+
-      'Position sur le plan : <b>'+Math.round(p.x)+' ; '+Math.round(p.y)+' px</b>.<br>'+
-      'Restez immobile pendant la mesure.</div>'+
+    if(cal.mode==="saisie"){ ecranSaisie(n,p); return; }
+    b.innerHTML='<div class="etape"><h3>Point '+n+' — mesure GPS</h3>'+
+      'Repère placé sur le plan en <b>'+Math.round(p.x)+' ; '+Math.round(p.y)+' px</b>.<br><br>'+
+      '<b>Vous devez être physiquement sur ce point</b>, dehors, ciel dégagé.'+
+      (n===2?' Si vous n\'avez pas encore marché jusqu\'au point 2, faites-le maintenant.':'')+
+      '<br>Gardez l\'écran allumé pendant la mesure.</div>'+
       '<div id="cal-mesure" class="info" style="font-size:16px;text-align:center;padding:14px 0">'+
-      'Appuyez sur « Capturer » et ne bougez plus.</div>';
+      'Appuyez sur « Mesurer » et ne bougez plus.</div>';
     f.innerHTML='<button class="btn" data-cal="repointer'+n+'">Repointer</button>'+
-      '<button class="btn or" data-cal="capturer'+n+'">Capturer (5 s)</button>';
+      '<button class="btn or" data-cal="capturer'+n+'">Mesurer (5 s)</button>';
+
   }else if(cal.etape===4){
-    var c=calculerCalage(cal.p1,cal.p2);
-    if(!c){
-      b.innerHTML='<p class="info ko">Les deux points sont confondus sur le plan. Recommencez.</p>';
-      f.innerHTML='<button class="btn or plein" data-cal="recommencer">Recommencer</button>';
-      return;
-    }
-    cal.calcul=c;
-    var d=c.distance_m, prec=(cal.p1.acc+cal.p2.acc)/2;
-    var avis=(d<20)?'<p class="info wa">Les deux points sont proches ('+d.toFixed(0)+' m) :'+
-      ' le calage sera approximatif. Refaites-le avec un point plus éloigné si possible.</p>':
-      '<p class="info ok">Écartement correct : le calage devrait être fiable.</p>';
-    b.innerHTML='<div class="rub">Résultat</div>'+
-      '<div class="kv"><b>Distance entre les points</b><span>'+d.toFixed(1)+' m</span></div>'+
-      '<div class="kv"><b>Échelle du plan</b><span>1 px = '+
-        (c.echelle_m_par_px<0.01?(c.echelle_m_par_px*1000).toFixed(1)+" mm":c.echelle_m_par_px.toFixed(3)+" m")+'</span></div>'+
-      '<div class="kv"><b>Largeur du plan</b><span>'+(FW*c.echelle_m_par_px).toFixed(1)+' m</span></div>'+
-      '<div class="kv"><b>Précision GPS moyenne</b><span>± '+prec.toFixed(0)+' m</span></div>'+
-      '<div class="kv" style="border:0"><b>Rotation du plan</b><span>'+
-        (((Math.atan2(c.b,c.a)*180/Math.PI)+360)%360).toFixed(1)+'°</span></div>'+avis;
-    f.innerHTML='<button class="btn" data-cal="recommencer">Recommencer</button>'+
-      '<button class="btn or" data-cal="valider">Enregistrer le calage</button>';
+    ecranResume();
+  }else if(cal.etape===5){
+    ecranDetail();
   }
+}
+function ecranSaisie(n,p){
+  var b=$("cal-body"), f=$("cal-bas");
+  b.innerHTML='<div class="etape"><h3>Point '+n+' — ses coordonnées</h3>'+
+    'Repère placé sur le plan en <b>'+Math.round(p.x)+' ; '+Math.round(p.y)+' px</b>.<br><br>'+
+    'Dans <b>Google Earth</b>, faites un clic droit sur <b>ce même point</b> du bâtiment :'+
+    ' ses coordonnées s\'affichent. Recopiez-les ci-dessous.</div>'+
+    '<label class="champ"><span>Latitude et longitude</span>'+
+    '<input type="text" id="cal-ll" autocomplete="off" autocapitalize="off" spellcheck="false" '+
+    'placeholder="48.512345, 0.551234" value="'+
+    (p.lat!=null?esc(p.lat.toFixed(7)+", "+p.lon.toFixed(7)):"")+'"></label>'+
+    '<div id="cal-lu" class="info" style="font-size:16px;min-height:24px"></div>'+
+    '<p class="info">Formats acceptés :<br>'+
+    '<b>48.512345, 0.551234</b> — décimal (Google Maps)<br>'+
+    '<b>48°30\'44.4"N 0°33\'4.4"E</b> — sexagésimal (Google Earth Pro)</p>';
+  f.innerHTML='<button class="btn" data-cal="repointer'+n+'">Repointer</button>'+
+    '<button class="btn or" data-cal="saisir'+n+'">Valider ce point</button>';
+  var inp=$("cal-ll");
+  function relire(){
+    var v=inp.value.trim(), r=v?lireLatLon(v):null;
+    $("cal-lu").innerHTML=!v?"":(r
+      ?'<b class="ok">Compris : '+r.lat.toFixed(6)+" ; "+r.lon.toFixed(6)+'</b>'
+      :'<b class="ko">Format non reconnu</b>');
+  }
+  inp.addEventListener("input",relire); relire();
+}
+function ecranResume(){
+  var b=$("cal-body"), f=$("cal-bas");
+  var c=calculerCalage(cal.p1,cal.p2);
+  if(!c){
+    b.innerHTML='<p class="info ko">Les deux points sont confondus sur le plan. Recommencez'+
+      ' en les plaçant loin l\'un de l\'autre.</p>';
+    f.innerHTML='<button class="btn or plein" data-cal="recommencer">Recommencer</button>';
+    return;
+  }
+  cal.calcul=c;
+  var s=c.echelle_m_par_px, d=c.distance_m, Lm=FW*s, Hm=FH*s;
+  var prec=(cal.p1.acc!=null&&cal.p2.acc!=null)?(cal.p1.acc+cal.p2.acc)/2:null;
+
+  /* Contrôle de vraisemblance : c'est ici qu'on rattrape une mesure GPS qui n'a pas bougé,
+     un point mal pointé, ou des coordonnées mal recopiées. */
+  var refus=null, alerte=null;
+  if(!isFinite(s)||s<=0){
+    refus="Le calcul ne donne rien d'exploitable. Reprenez les deux points.";
+  }else if(d<15){
+    refus="Vos deux relevés ne sont distants que de <b>"+d.toFixed(1)+" m</b>."+
+      (cal.mode==="gps"
+        ? " Le téléphone n'a donc pas vu que vous vous déplaciez : il a probablement"+
+          " ressorti deux fois la même position. Refaites la mesure, écran allumé,"+
+          " en attendant quelques secondes à découvert à chaque point."
+        : " Choisissez deux points vraiment éloignés l'un de l'autre.");
+  }else if(Lm<3||Lm>5000){
+    refus="Ce calage donnerait un plan de <b>"+fmtM(Lm)+"</b> de large, ce qui n'a pas de sens."+
+      " Reprenez les deux points.";
+  }else if(d<40){
+    alerte="Vos deux points ne sont qu'à "+d.toFixed(0)+" m l'un de l'autre : le calage"+
+      " fonctionnera, mais la moindre erreur est amplifiée. Plus loin serait mieux.";
+  }else if(prec!=null&&prec>12){
+    alerte="La précision GPS des relevés (± "+prec.toFixed(0)+" m) est moyenne au regard des "+
+      d.toFixed(0)+" m qui séparent les points.";
+  }
+
+  var entete=refus
+    ? '<div class="carte" style="border-color:var(--rouge);border-left:5px solid var(--rouge)">'+
+      '<h3 style="color:#FF8085">Ce calage est faux</h3>'+
+      '<p class="info" style="margin:0">'+refus+'</p></div>'
+    : '<div class="carte" style="border-color:var(--or);border-left:5px solid var(--or)">'+
+      '<h3>Vérification</h3><p class="info" style="margin:0 0 10px">D\'après ce calage,'+
+      ' votre plan couvre :</p>'+
+      '<div style="font-size:27px;font-weight:800;color:var(--or);text-align:center;line-height:1.25">'+
+      fmtM(Lm)+' × '+fmtM(Hm)+'</div>'+
+      '<p class="info" style="margin:10px 0 0;text-align:center">'+
+      '<b>Est-ce la bonne taille pour ce site ?</b><br>'+
+      'Si non, n\'enregistrez pas : le calage est faux.</p></div>';
+
+  b.innerHTML=entete+
+    (alerte?'<p class="info wa">'+alerte+'</p>':'')+
+    '<div class="rub">Détail</div>'+
+    '<div class="kv"><b>Distance entre les 2 points</b><span>'+d.toFixed(1)+' m</span></div>'+
+    '<div class="kv"><b>Écartement sur le plan</b><span>'+Math.round(c.distance_px)+' px</span></div>'+
+    '<div class="kv"><b>Échelle</b><span>1 px = '+fmtEchelle(s)+'</span></div>'+
+    '<div class="kv"><b>Rotation du plan</b><span>'+
+      (((Math.atan2(c.b,c.a)*180/Math.PI)+360)%360).toFixed(1)+'°</span></div>'+
+    '<div class="kv" style="border:0"><b>Précision des relevés</b><span>'+
+      (prec!=null?("± "+prec.toFixed(0)+" m"):"saisie manuelle")+'</span></div>';
+
+  f.innerHTML='<button class="btn" data-cal="recommencer">Recommencer</button>'+
+    (refus?'<button class="btn" disabled>Enregistrer</button>'
+          :'<button class="btn or" data-cal="valider">Oui, enregistrer</button>');
+}
+/* Détail d'un calage déjà enregistré : sert à comprendre quand la position part de travers. */
+function ecranDetail(){
+  var b=$("cal-body"), f=$("cal-bas"), c=cale();
+  if(!c){b.innerHTML='<p class="info">Aucun calage enregistré.</p>';
+    f.innerHTML='<button class="btn plein" data-cal="annuler">Fermer</button>';return;}
+  var s=c.echelle_m_par_px, pts=c.points||[];
+  function bloc(p,n){
+    if(!p)return "";
+    return '<div class="rub">Point '+n+'</div>'+
+      '<div class="kv"><b>Sur le plan</b><span>'+Math.round(p.x)+' ; '+Math.round(p.y)+' px</span></div>'+
+      '<div class="kv"><b>Latitude</b><span>'+(p.lat!=null?p.lat.toFixed(7):"—")+'</span></div>'+
+      '<div class="kv"><b>Longitude</b><span>'+(p.lon!=null?p.lon.toFixed(7):"—")+'</span></div>'+
+      '<div class="kv" style="border:0"><b>Précision du relevé</b><span>'+
+        (p.acc!=null?("± "+p.acc.toFixed(0)+" m"+(p.n?(" sur "+p.n+" mesures"):"")):"saisie manuelle")+
+      '</span></div>';
+  }
+  b.innerHTML='<div class="rub">Ce que l\'application en déduit</div>'+
+    '<div class="kv"><b>Taille du plan</b><span>'+fmtM(FW*s)+' × '+fmtM(FH*s)+'</span></div>'+
+    '<div class="kv"><b>Échelle</b><span>1 px = '+fmtEchelle(s)+'</span></div>'+
+    '<div class="kv"><b>Distance entre les 2 points</b><span>'+
+      (c.distance_m!=null?c.distance_m.toFixed(1)+" m":"—")+'</span></div>'+
+    '<div class="kv"><b>Écartement sur le plan</b><span>'+
+      (c.distance_px!=null?Math.round(c.distance_px)+" px":"—")+'</span></div>'+
+    '<div class="kv"><b>Rotation</b><span>'+
+      (((Math.atan2(c.b,c.a)*180/Math.PI)+360)%360).toFixed(1)+'°</span></div>'+
+    '<div class="kv" style="border:0"><b>Calé le</b><span>'+fmtDate(c.date)+'</span></div>'+
+    bloc(pts[0],1)+bloc(pts[1],2)+
+    '<p class="info" style="margin-top:16px">Si la « taille du plan » ne correspond pas à la'+
+    ' réalité du site, le calage est faux : refaites-le.</p>';
+  f.innerHTML='<button class="btn" data-cal="annuler">Fermer</button>'+
+    '<button class="btn or" data-cal="recommencer">Refaire le calage</button>';
 }
 function pointerCalage(n){
   fermer("sh-calage");
   var dep=(n===1&&cal.p1)?{x:cal.p1.x,y:cal.p1.y}:((n===2&&cal.p2)?{x:cal.p2.x,y:cal.p2.y}:null);
   demarrerPose({
     etiquette:"point "+n, depart:dep,
-    texte:"Point "+n+" : glissez le repère exactement sur le lieu où vous vous trouvez.",
+    texte:(cal.mode==="saisie"
+      ? "Point "+n+" : glissez le repère sur le point dont vous avez les coordonnées."
+      : "Point "+n+" : glissez le repère exactement sur le lieu où vous vous trouvez."),
     onOk:function(x,y){
-      var o={x:x,y:y};
+      var o=(n===1?cal.p1:cal.p2)||{};
+      o.x=x; o.y=y;
       if(n===1){cal.p1=o;cal.etape=1;}else{cal.p2=o;cal.etape=3;}
       ecranCalage(); ouvrir("sh-calage");
     },
-    onAnnul:function(){ cal.etape=(n===1)?0:2; if(cal.etape===2)cal.etape=3; ecranCalage(); ouvrir("sh-calage"); }
+    onAnnul:function(){ cal.etape=(n===1)?0:3; ecranCalage(); ouvrir("sh-calage"); }
   });
+}
+function validerSaisie(n){
+  var inp=$("cal-ll"); if(!inp)return;
+  var r=lireLatLon(inp.value);
+  if(!r){toast("Coordonnées non reconnues — vérifiez le format",4000);return;}
+  var p=(n===1)?cal.p1:cal.p2;
+  p.lat=r.lat; p.lon=r.lon; p.acc=null; p.n=null;
+  if(n===1){ cal.etape=2; pointerCalage(2); }
+  else { cal.etape=4; ecranCalage(); }
 }
 function capturerCalage(n){
   var z=$("cal-mesure");
   z.innerHTML='<b style="font-size:22px;color:#f5b301">5,0 s</b><br>Ne bougez pas…';
   qsa("#cal-bas button").forEach(function(b){b.disabled=true;});
-  capturerGPS(5,function(nb,reste){
-    z.innerHTML='<b style="font-size:22px;color:#f5b301">'+reste.toFixed(1)+' s</b><br>'+
-      (nb?(nb+" mesure(s) reçue(s)"):"En attente du GPS…");
+  capturerGPS(5,function(nb,reste,rejetes,motif,acc){
+    var l1='<b style="font-size:22px;color:#f5b301">'+
+      (reste>0?reste.toFixed(1)+" s":"patience…")+'</b>';
+    var l2=nb?(nb+" mesure(s) retenue(s)"+(acc?(" — ± "+Math.round(acc)+" m"):""))
+             :"En attente d'une vraie mesure satellite…";
+    var l3=(!nb&&rejetes&&motif)?('<br><small class="wa">'+esc(motif)+'</small>')
+          :(rejetes?('<br><small style="color:#6E8AA0">'+rejetes+' mesure(s) écartée(s)</small>'):'');
+    z.innerHTML=l1+'<br>'+l2+l3;
   }).then(function(r){
     var p=(n===1)?cal.p1:cal.p2;
     p.lat=r.lat; p.lon=r.lon; p.acc=r.acc; p.n=r.n;
-    z.innerHTML='<b class="ok">Point '+n+' capturé</b><br>± '+r.acc.toFixed(0)+' m sur '+r.n+' mesures';
+    z.innerHTML='<b class="ok">Point '+n+' mesuré</b><br>± '+r.acc.toFixed(0)+' m sur '+r.n+' mesures'+
+      (r.rejetes?('<br><small style="color:#6E8AA0">'+r.rejetes+' mesure(s) écartée(s)</small>'):'');
     qsa("#cal-bas button").forEach(function(b){b.disabled=false;});
-    if(n===1){ cal.etape=2; setTimeout(function(){pointerCalage(2);},700); }
-    else { cal.etape=4; setTimeout(ecranCalage,700); }
+    if(n===1){
+      cal.etape=2;
+      z.innerHTML+='<br><br><b style="color:#f5b301">Rendez-vous maintenant au point 2,'+
+        ' le plus loin possible.</b>';
+      setTimeout(function(){pointerCalage(2);},1800);
+    }else{ cal.etape=4; setTimeout(ecranCalage,900); }
   })["catch"](function(e){
     z.innerHTML='<b class="ko">'+esc(e.message)+'</b>';
     qsa("#cal-bas button").forEach(function(b){b.disabled=false;});
@@ -1731,6 +1972,11 @@ function brancher(){
     sauverProjet().then(function(){chargerFond();majReglages();toast("Fond de plan retiré");});
   });
   $("b-calage").addEventListener("click",lancerCalage);
+  $("b-detail-calage").addEventListener("click",function(){
+    if(!cale()){toast("Aucun calage enregistré");return;}
+    cal={mode:null,etape:5,p1:null,p2:null,calcul:null};
+    ecranCalage(); ouvrir("sh-calage");
+  });
   $("b-decaler").addEventListener("click",function(){
     if(!confirm("Effacer le calage GPS ? Les boîtes déjà posées gardent leurs coordonnées."))return;
     S.projet.calage=null;
@@ -1740,12 +1986,15 @@ function brancher(){
     var b=e.target.closest("[data-cal]"); if(!b)return;
     var a=b.dataset.cal;
     if(a==="annuler"){fermer("sh-calage");}
-    else if(a==="pointer1"){pointerCalage(1);}
+    else if(a==="mode-saisie"){cal.mode="saisie";pointerCalage(1);}
+    else if(a==="mode-gps"){cal.mode="gps";pointerCalage(1);}
     else if(a==="repointer1"){pointerCalage(1);}
     else if(a==="repointer2"){pointerCalage(2);}
     else if(a==="capturer1"){capturerCalage(1);}
     else if(a==="capturer2"){capturerCalage(2);}
-    else if(a==="recommencer"){cal={etape:0,p1:null,p2:null};ecranCalage();}
+    else if(a==="saisir1"){validerSaisie(1);}
+    else if(a==="saisir2"){validerSaisie(2);}
+    else if(a==="recommencer"){cal={mode:null,etape:0,p1:null,p2:null,calcul:null};ecranCalage();}
     else if(a==="valider"){
       S.projet.calage=cal.calcul;
       sauverProjet().then(function(){
