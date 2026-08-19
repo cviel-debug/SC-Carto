@@ -1,0 +1,21 @@
+# Fichiers de travail — ne doivent pas partir sur GitHub Pages
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Plans et relevés clients : ils n'ont rien à faire dans un dépôt public
+*.dxf
+*.dwg
+*.svg
+*.calage.json
+releve*.json
+SC-Carto_*.json
+SC-Carto_*.csv
+SC-Carto_*.zip
+essais/
+
+# Système
+Thumbs.db
+desktop.ini
+.DS_Store

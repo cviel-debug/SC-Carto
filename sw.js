@@ -32,19 +32,43 @@ self.addEventListener("activate", function (e) {
   );
 });
 
+/* Récupère l'application sur le réseau, sinon dans le cache.
+   Délai court : au-delà, on n'attend pas et on sert la version en cache. */
+function reseauDabord(requete, secours, delai) {
+  return new Promise(function (res) {
+    var repondu = false;
+    function servirCache() {
+      if (repondu) return;
+      repondu = true;
+      caches.match(secours).then(function (rep) {
+        res(rep || Response.error());
+      });
+    }
+    var minuteur = setTimeout(servirCache, delai);
+    fetch(requete, { cache: "no-store" }).then(function (net) {
+      if (!net || net.status !== 200) throw new Error("reponse inutilisable");
+      var copie = net.clone();
+      caches.open(VERSION).then(function (c) { c.put(secours, copie); });
+      clearTimeout(minuteur);
+      if (!repondu) { repondu = true; res(net); }
+    })["catch"](function () {
+      clearTimeout(minuteur);
+      servirCache();
+    });
+  });
+}
+
 self.addEventListener("fetch", function (e) {
   var r = e.request;
   if (r.method !== "GET") return;
   var u = new URL(r.url);
   if (u.origin !== self.location.origin) return;
 
-  // Navigation : on sert index.html depuis le cache, même hors ligne.
-  if (r.mode === "navigate") {
-    e.respondWith(
-      caches.match("./index.html").then(function (rep) {
-        return rep || fetch(r)["catch"](function () { return caches.match("./"); });
-      })
-    );
+  /* L'application elle-même : réseau d'abord, cache en secours.
+     Une nouvelle version mise en ligne est donc prise au lancement suivant,
+     sans rien avoir à modifier ici — et hors ligne, le cache prend le relais. */
+  if (r.mode === "navigate" || /(^|\/)(index\.html)?$/.test(u.pathname)) {
+    e.respondWith(reseauDabord(r, "./index.html", 2500));
     return;
   }
 

@@ -101,12 +101,14 @@ Au premier usage, le téléphone demandera l'autorisation d'accéder à la
 
 ### Mettre à jour l'application plus tard
 
-1. Ouvrir `sw.js` sur GitHub, bouton crayon ✏️, changer la ligne
-   `var VERSION = "sc-carto-v1.0.0";` en `...v1.0.1` (n'importe quel nouveau texte).
-   **C'est ce changement qui déclenche la mise à jour sur les téléphones.**
-2. Remplacer `index.html` (Add file → Upload files, même nom : il écrase).
-3. Sur le téléphone, fermer puis rouvrir l'application **deux fois** :
-   la première récupère la nouveauté, la seconde l'affiche.
+Les étapes 1 à 4 ci-dessus ne se font **qu'une seule fois**. Ensuite, publier une
+nouvelle version tient en une manipulation : **remplacer `index.html`**
+(*Add file ▸ Upload files*, même nom : il écrase l'ancien).
+
+Il n'y a **rien d'autre à modifier** : au lancement suivant, chaque téléphone va
+chercher la dernière version sur le réseau. S'il n'a pas de réseau, il démarre
+sur la version qu'il a déjà en mémoire — l'application reste utilisable en usine
+comme avant.
 
 > **Avant toute mise à jour**, demandez aux utilisateurs d'exporter une
 > sauvegarde JSON. Les données ne sont pas perdues par une mise à jour,
@@ -180,6 +182,11 @@ Le second renvoie les boîtes relevées dans le DXF du client.
 * **Aucune dépendance réseau** après le premier chargement : tout le CSS, tout le
   JavaScript et le logo sont dans `index.html`. Pas de CDN, pas de police
   distante, pas de bibliothèque externe.
+* **Mise à jour automatique** : le service worker va chercher `index.html` sur le
+  réseau au lancement, avec un délai d'attente de 2,5 s au-delà duquel il sert la
+  version en cache. Une nouvelle version mise en ligne est donc prise au
+  lancement suivant, sans numéro de version à changer nulle part, et sans jamais
+  empêcher un démarrage hors ligne.
 * **Stockage** : IndexedDB (projets, points, photos, fond de plan). Les photos
   sont réduites à 1600 px et recompressées en JPEG à l'enregistrement.
 * **ZIP** : écrit directement par l'application, en mode « stocké » sans
