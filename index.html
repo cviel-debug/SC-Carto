@@ -93,6 +93,19 @@ nav button{flex:1;min-height:64px;display:flex;flex-direction:column;align-items
 nav button svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2;
  stroke-linecap:round;stroke-linejoin:round}
 nav button.on{color:var(--or);border-top-color:var(--or);background:rgba(245,179,1,.07)}
+nav button{position:relative}
+nav .nb{position:absolute;top:7px;left:50%;margin-left:4px;min-width:21px;height:21px;
+ border-radius:99px;background:var(--or);color:#0A1422;font-size:12px;font-weight:800;
+ display:flex;align-items:center;justify-content:center;padding:0 5px;
+ box-shadow:0 0 0 2px var(--bg2)}
+#rappel{position:absolute;left:0;right:0;top:0;z-index:9;display:flex;align-items:center;gap:10px;
+ padding:10px 12px;background:var(--or);color:#0A1422;font-size:14px;font-weight:700;
+ box-shadow:0 3px 10px rgba(0,0,0,.4)}
+#rappel span{flex:1;line-height:1.25}
+#rappel button{flex:0 0 auto;font-weight:800}
+#rappel .env{min-height:40px;padding:8px 14px;border-radius:9px;background:#0A1422;color:var(--or);font-size:14px}
+#rappel .fer{width:36px;height:36px;border-radius:9px;background:rgba(10,20,34,.16);color:#0A1422;font-size:17px}
+#plan.avec-rappel #gps-etat,#plan.avec-rappel #hud{top:68px}
 
 /* --------- Vue plan --------- */
 #plan{position:absolute;inset:0;overflow:hidden;background:var(--bg);touch-action:none;
@@ -309,6 +322,11 @@ select{-webkit-appearance:none;appearance:none;
      <span style="font-size:15px">Importez le plan de l'usine (PNG, JPG ou SVG).</span></div>
      <button class="btn or" id="b-import-fond2">Importer un plan</button>
     </div>
+    <div id="rappel" class="hide">
+     <span id="rappel-txt"></span>
+     <button class="env" id="rappel-go">Envoyer</button>
+     <button class="fer" id="rappel-x">✕</button>
+    </div>
     <div id="gps-etat" class="hide"></div>
     <div id="hud">
      <button id="b-lumiere" title="Mode lumière">☀</button>
@@ -350,6 +368,7 @@ select{-webkit-appearance:none;appearance:none;
       téléphone au moment où vous le saisissez. Cet écran ne sert qu'à <b>transmettre</b>
       le relevé au PC ou au client.</p>
     </div>
+    <div class="carte" id="exp-etat" style="border-left:5px solid var(--or)"></div>
     <button class="btn plein or" id="b-exporter" style="min-height:74px;font-size:19px">
      <svg viewBox="0 0 24 24" style="width:26px;height:26px"><path d="M12 3v12M8 11l4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
      Exporter le relevé</button>
@@ -1034,6 +1053,7 @@ function chargerProjet(id){
     $("plan").classList.toggle("clair",!!S.projet.planClair);
     $("b-lumiere").classList.toggle("actif",!!S.projet.planClair);
     chargerFond(); dessinerMarqueurs(); majGPS(); majReglages(); rendreListe();
+    rappelMasqueA=0; rappelMasqueN=0; majRappel();
   });
 }
 function trierPointsInternes(){
@@ -1060,7 +1080,8 @@ function nouveauPoint(x,y){
          statut:"a_identifier", note:"", cree:nowISO(), modifie:nowISO()};
   S.projet.compteur=n;
   return dbPut("points",p).then(sauverProjet).then(function(){
-    S.points.push(p); trierPointsInternes(); dessinerMarqueurs(); rendreListe(); majReglages();
+    S.points.push(p); trierPointsInternes(); dessinerMarqueurs(); rendreListe();
+    majReglages(); majRappel();
     return p;
   });
 }
@@ -1146,7 +1167,7 @@ function enregistrerFiche(leger){
   var num=($("fi-num").value||"").trim()||p.numero;
   p.numero=num; p.note=$("fi-note").value||""; p.statut=fiche.statut; p.modifie=nowISO();
   return dbPut("points",p).then(function(){
-    if(!leger){ trierPointsInternes(); dessinerMarqueurs(); rendreListe(); }
+    if(!leger){ trierPointsInternes(); dessinerMarqueurs(); rendreListe(); majRappel(); }
   });
 }
 var ficheT=null, etatT=null;
@@ -1165,7 +1186,7 @@ function supprimerPoint(id){
     .then(function(){
       S.points=S.points.filter(function(p){return p.id!==id;});
       return compterPhotos();
-    }).then(function(){ dessinerMarqueurs(); rendreListe(); majReglages(); });
+    }).then(function(){ dessinerMarqueurs(); rendreListe(); majReglages(); majRappel(); });
 }
 
 /* ========================= LISTE ========================= */
@@ -1240,6 +1261,7 @@ function sortir(blob,nom,titre){
 function remettreFichier(){
   if(!fichierPret)return;
   var b=fichierPret.blob, nom=fichierPret.nom, titre=fichierPret.titre, f=null;
+  if(/\.zip$/i.test(nom))marquerTransmis();
   try{ f=new File([b],nom,{type:b.type||"application/octet-stream"}); }catch(e){}
   if(f&&navigator.share&&navigator.canShare&&navigator.canShare({files:[f]})){
     navigator.share({files:[f],title:titre||nom}).then(function(){
@@ -1472,6 +1494,62 @@ function reprendre(d,fichiers){
     .then(function(){toast("Relevé repris : "+np.nom,3500);fermerTout();allerVue("v-plan");})
     ["catch"](function(e){toast("Échec de la reprise : "+e.message,5000);});
 }
+/* ---- Rappel de transmission ----------------------------------------------
+   L'export ne peut pas être automatique : sur iPhone une application web n'a pas
+   le droit d'écrire dans un dossier. À défaut, on supprime l'oubli plutôt que le
+   geste — sans jamais bloquer quoi que ce soit. */
+var rappelMasqueA=0, rappelMasqueN=0;
+function nonTransmises(){
+  if(!S.projet||!S.points.length)return 0;
+  var d=S.projet.dernierExport;
+  if(!d)return S.points.length;
+  return S.points.filter(function(p){return String(p.modifie||p.cree)>d;}).length;
+}
+function depuis(iso){
+  if(!iso)return null;
+  var h=(Date.now()-new Date(iso).getTime())/3600000;
+  if(!isFinite(h)||h<0)return null;
+  if(h<1)return Math.max(1,Math.round(h*60))+" min";
+  if(h<24)return Math.round(h)+" h";
+  return Math.round(h/24)+" j";
+}
+function majRappel(){
+  if(!S.projet)return;
+  var n=nonTransmises(), d=S.projet.dernierExport, age=depuis(d);
+
+  var onglet=document.querySelector('nav button[data-vue=v-export]');
+  var pastille=onglet.querySelector(".nb");
+  if(n>0){
+    if(!pastille){pastille=document.createElement("span");pastille.className="nb";onglet.appendChild(pastille);}
+    pastille.textContent=n>99?"99+":n;
+  }else if(pastille)pastille.remove();
+
+  /* le bandeau n'apparaît que si l'oubli devient plausible */
+  var heures=d?((Date.now()-new Date(d).getTime())/3600000):999;
+  var merite=(n>0)&&(heures>=2||n>=15);
+  var masqueRecent=(Date.now()-rappelMasqueA)<3600000 && n<rappelMasqueN+5;
+  var r=$("rappel");
+  if(merite&&!masqueRecent){
+    $("rappel-txt").innerHTML="<b>"+n+" boîte"+(n>1?"s":"")+"</b> non transmise"+(n>1?"s":"")+
+      (age?(" — dernier envoi il y a "+age):" — jamais envoyé");
+    r.classList.remove("hide"); $("plan").classList.add("avec-rappel");
+  }else{ r.classList.add("hide"); $("plan").classList.remove("avec-rappel"); }
+
+  var e=$("exp-etat");
+  if(e)e.innerHTML=(n>0)
+    ?('<h3 style="color:var(--or)">'+n+' boîte'+(n>1?"s":"")+' à transmettre</h3>'+
+      '<p class="info" style="margin:0">'+(age?("Dernier envoi il y a "+age+"."):"Ce relevé n'a jamais été envoyé.")+
+      (n>1?" Elles sont bien enregistrées":" Elle est bien enregistrée")+
+      ' dans le téléphone — il manque juste la copie au PC.</p>')
+    :('<h3 style="color:var(--vert)">Relevé à jour</h3>'+
+      '<p class="info" style="margin:0">Tout a été transmis'+(age?(" il y a "+age):"")+'.</p>');
+}
+function marquerTransmis(){
+  if(!S.projet)return;
+  S.projet.dernierExport=nowISO();
+  rappelMasqueA=0; rappelMasqueN=0;
+  sauverProjet().then(majRappel);
+}
 function verifPoints(){
   if(!S.projet){toast("Aucun projet");return false;}
   if(!S.points.length){toast("Aucune boîte à exporter");return false;}
@@ -1488,6 +1566,7 @@ function allerVue(id){
   if(id==="v-plan"&&FW&&view.z===1&&view.x===0&&view.y===0)cadrer();
   if(id==="v-liste")rendreListe();
   if(id==="v-reglages")majReglages();
+  if(id==="v-export")majRappel();
 }
 function majReglages(){
   if(!S.projet)return;
@@ -2028,6 +2107,10 @@ function brancher(){
 
   /* --- exports --- */
   $("b-exporter").addEventListener("click",exporterReleve);
+  $("rappel-go").addEventListener("click",function(){allerVue("v-export");exporterReleve();});
+  $("rappel-x").addEventListener("click",function(){
+    rappelMasqueA=Date.now(); rappelMasqueN=nonTransmises(); majRappel();
+  });
   $("fx-ok").addEventListener("click",remettreFichier);
   $("b-restaure").addEventListener("click",function(){$("f-restaure").click();});
   $("f-restaure").addEventListener("change",function(e){
@@ -2212,6 +2295,7 @@ function demarrer(){
     return id;
   }).then(chargerProjet).then(function(){
     if(S.ui.gpsSuivi)suivreGPS();
+    setInterval(majRappel,300000);   /* le seuil des 2 h doit pouvoir tomber appli ouverte */
     if(navigator.storage&&navigator.storage.persist)
       navigator.storage.persist()["catch"](function(){});
     clearInterval(ivDots);
