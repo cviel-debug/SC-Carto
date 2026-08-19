@@ -539,6 +539,20 @@ select{-webkit-appearance:none;appearance:none;
  <div class="sh-bas"><button class="btn plein" data-close="sh-aide">Fermer</button></div>
 </div></div>
 
+<div class="sheet" id="sh-fichier"><div>
+ <div class="sh-top"><h2>Fichier prêt</h2><button class="x" data-close="sh-fichier">✕</button></div>
+ <div class="sh-body">
+  <div class="carte">
+   <h3 id="fx-nom" style="word-break:break-all">—</h3>
+   <div class="kv" style="border:0"><b>Taille</b><span id="fx-taille">—</span></div>
+  </div>
+  <p class="info">Appuyez sur le bouton ci-dessous : le téléphone vous demandera
+   alors où envoyer le fichier — <b>Dropbox</b>, mail, Fichiers…</p>
+  <p class="info" id="fx-note"></p>
+ </div>
+ <div class="sh-bas"><button class="btn or plein" id="fx-ok">Enregistrer / Envoyer</button></div>
+</div></div>
+
 <div id="visio"><img id="visio-img" alt=""><button id="visio-x">✕</button></div>
 <div id="toast"></div>
 <input type="file" id="f-fond" accept="image/png,image/jpeg,image/svg+xml,.svg,.png,.jpg,.jpeg" class="hide">
@@ -1181,19 +1195,50 @@ function rendreListe(){
 }
 
 /* ========================= EXPORTS ========================= */
+var urlsSorties=[];
 function telecharger(blob,nom){
+  /* On garde l'URL vivante : sur iPhone, l'enregistrement se termine bien après
+     le clic, et révoquer trop tôt donne « the object can't be found here ». */
+  urlsSorties.splice(0).forEach(function(u){try{URL.revokeObjectURL(u);}catch(e){}});
   var u=URL.createObjectURL(blob), a=document.createElement("a");
-  a.href=u; a.download=nom; a.style.display="none";
+  urlsSorties.push(u);
+  a.href=u; a.download=nom; a.target="_blank"; a.rel="noopener"; a.style.display="none";
   document.body.appendChild(a); a.click();
-  setTimeout(function(){ try{a.remove();URL.revokeObjectURL(u);}catch(e){} },2000);
+  setTimeout(function(){ try{a.remove();}catch(e){} },3000);
 }
+/* Remise du fichier en deux temps.
+   iOS n'autorise navigator.share() que dans la foulée immédiate d'un appui. Or
+   fabriquer un ZIP ou une sauvegarde avec photos prend plusieurs secondes : quand
+   le fichier est prêt, l'autorisation a expiré et le partage est refusé. On prépare
+   donc le fichier, puis on demande un second appui — celui-là est valide. */
+var fichierPret=null;
 function sortir(blob,nom,titre){
-  var f=null;
-  try{ f=new File([blob],nom,{type:blob.type||"application/octet-stream"}); }catch(e){}
+  fichierPret={blob:blob,nom:nom,titre:titre};
+  $("fx-nom").textContent=nom;
+  $("fx-taille").textContent=(blob.size<1024)?(blob.size+" octets")
+    :((blob.size<1048576)?((blob.size/1024).toFixed(blob.size<10240?1:0)+" Ko")
+                         :((blob.size/1048576).toFixed(2)+" Mo"));
+  $("fx-note").innerHTML=(blob.size>20*1048576)
+    ?"Ce fichier est trop lourd pour un mail : passez par <b>Dropbox</b>."
+    :"";
+  ouvrir("sh-fichier");
+}
+function remettreFichier(){
+  if(!fichierPret)return;
+  var b=fichierPret.blob, nom=fichierPret.nom, titre=fichierPret.titre, f=null;
+  try{ f=new File([b],nom,{type:b.type||"application/octet-stream"}); }catch(e){}
   if(f&&navigator.share&&navigator.canShare&&navigator.canShare({files:[f]})){
-    navigator.share({files:[f],title:titre||nom}).then(function(){toast("Fichier transmis");},
-      function(err){ if(err&&err.name==="AbortError")return; telecharger(blob,nom); });
-  }else{ telecharger(blob,nom); toast("Fichier téléchargé : "+nom,3500); }
+    navigator.share({files:[f],title:titre||nom}).then(function(){
+      fermer("sh-fichier"); toast("Fichier transmis");
+    },function(err){
+      if(err&&err.name==="AbortError")return;      /* l'utilisateur a renoncé */
+      telecharger(b,nom); fermer("sh-fichier");
+      toast("Partage impossible — fichier téléchargé",4000);
+    });
+  }else{
+    telecharger(b,nom); fermer("sh-fichier");
+    toast("Fichier téléchargé : "+nom,4000);
+  }
 }
 function csvVal(v){
   v=(v==null)?"":String(v);
@@ -1299,42 +1344,58 @@ function dataURLversBlob(u){
 }
 function exportJSON(avecPhotos){
   if(!S.projet){toast("Aucun projet");return;}
-  toast("Préparation de la sauvegarde…",8000);
+  toast("Préparation de la sauvegarde…",9000);
   var pr=S.projet;
-  var out={format:"sc-carto",version:1,application:"SC Carto v"+VERSION,exporte:nowISO(),
+  var enTete={format:"sc-carto",version:1,application:"SC Carto v"+VERSION,exporte:nowISO(),
     projet:{id:pr.id,nom:pr.nom,prefixe:pr.prefixe,compteur:pr.compteur,
-            cree:pr.cree,modifie:pr.modifie,calage:pr.calage||null,fond:null},
-    points:[]};
-  var par={};
+            cree:pr.cree,modifie:pr.modifie,calage:pr.calage||null,fond:null}};
+  var morceaux=[], par={};
+
   nomsPhotos().then(function(p){
     par=p;
-    S.points.forEach(function(pt){
-      out.points.push({id:pt.id,couche:pt.couche||"boites_derivation",numero:pt.numero,
-        x:Math.round(pt.x*100)/100, y:Math.round(pt.y*100)/100,
-        lat:pt.lat!=null?pt.lat:null, lon:pt.lon!=null?pt.lon:null,
-        statut:pt.statut, note:pt.note||"", cree:pt.cree, modifie:pt.modifie,
-        photos:(par[pt.id]||[]).map(function(x){return {nom:x.nom};})});
-    });
-    if(!avecPhotos)return null;
-    var ch=Promise.resolve();
-    if(pr.fond&&pr.fond.blob){
-      ch=ch.then(function(){return blobVersDataURL(pr.fond.blob).then(function(u){
-        out.projet.fond={nom:pr.fond.nom,type:pr.fond.type,
-          largeur:pr.fond.largeur,hauteur:pr.fond.hauteur,donnees:u};});});
+    if(pr.fond){
+      enTete.projet.fond={nom:pr.fond.nom,type:pr.fond.type,
+                          largeur:pr.fond.largeur,hauteur:pr.fond.hauteur};
+      if(avecPhotos&&pr.fond.blob){
+        return blobVersDataURL(pr.fond.blob).then(function(u){enTete.projet.fond.donnees=u;});
+      }
     }
-    out.points.forEach(function(pt){
-      (par[pt.id]||[]).forEach(function(x,i){
-        ch=ch.then(function(){return blobVersDataURL(x.blob).then(function(u){
-          pt.photos[i].donnees=u; pt.photos[i].type="image/jpeg";});});
+    return null;
+  }).then(function(){
+    /* Le document est écrit par morceaux plutôt qu'assemblé en une seule chaîne :
+       sur un projet chargé en photos, une chaîne unique de plusieurs dizaines de Mo
+       fait tomber le navigateur du téléphone. */
+    var tete=JSON.stringify(enTete,null,1);
+    morceaux.push(tete.replace(/\}\s*$/,"")+',\n "points": [\n');
+    var chaine=Promise.resolve(), total=S.points.length;
+    S.points.forEach(function(pt,i){
+      chaine=chaine.then(function(){
+        var lot=par[pt.id]||[];
+        var o={id:pt.id, couche:pt.couche||"boites_derivation", numero:pt.numero,
+               x:Math.round(pt.x*100)/100, y:Math.round(pt.y*100)/100,
+               lat:pt.lat!=null?pt.lat:null, lon:pt.lon!=null?pt.lon:null,
+               statut:pt.statut, note:pt.note||"", cree:pt.cree, modifie:pt.modifie,
+               photos:lot.map(function(x){return {nom:x.nom,type:"image/jpeg"};})};
+        if(total>6&&i%5===0)toast("Sauvegarde… "+(i+1)+" / "+total,9000);
+        if(!avecPhotos||!lot.length){
+          morceaux.push((i?",\n":"")+JSON.stringify(o));
+          return null;
+        }
+        var c2=Promise.resolve();
+        lot.forEach(function(x,j){
+          c2=c2.then(function(){
+            return blobVersDataURL(x.blob).then(function(u){o.photos[j].donnees=u;});
+          });
+        });
+        return c2.then(function(){ morceaux.push((i?",\n":"")+JSON.stringify(o)); });
       });
     });
-    return ch;
+    return chaine;
   }).then(function(){
-    if(!avecPhotos&&pr.fond)out.projet.fond={nom:pr.fond.nom,type:pr.fond.type,
-      largeur:pr.fond.largeur,hauteur:pr.fond.hauteur};
-    var b=new Blob([JSON.stringify(out,null,1)],{type:"application/json"});
-    sortir(b,baseNom()+(avecPhotos?"":"_leger")+".json","Sauvegarde SC Carto");
-  })["catch"](function(e){toast("Erreur sauvegarde : "+e.message,4500);});
+    morceaux.push("\n ]\n}\n");
+    sortir(new Blob(morceaux,{type:"application/json"}),
+           baseNom()+(avecPhotos?"":"_leger")+".json","Sauvegarde SC Carto");
+  })["catch"](function(e){toast("Erreur sauvegarde : "+e.message,5000);});
 }
 function restaurer(file){
   var fr=new FileReader();
@@ -1933,6 +1994,7 @@ function brancher(){
   $("b-exp-zip").addEventListener("click",exportZIP);
   $("b-exp-json").addEventListener("click",function(){exportJSON(true);});
   $("b-exp-json-leger").addEventListener("click",function(){exportJSON(false);});
+  $("fx-ok").addEventListener("click",remettreFichier);
   $("b-restaure").addEventListener("click",function(){$("f-restaure").click();});
   $("f-restaure").addEventListener("change",function(e){
     if(e.target.files[0])restaurer(e.target.files[0]); e.target.value="";
