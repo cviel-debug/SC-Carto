@@ -567,11 +567,21 @@ select{-webkit-appearance:none;appearance:none;
    <h3 id="fx-nom" style="word-break:break-all">—</h3>
    <div class="kv" style="border:0"><b>Taille</b><span id="fx-taille">—</span></div>
   </div>
-  <p class="info">Appuyez sur le bouton ci-dessous : le téléphone vous demandera
-   alors où envoyer le fichier — <b>Dropbox</b>, mail, Fichiers…</p>
   <p class="info" id="fx-note"></p>
+  <div class="etape"><h3>Envoyer vers…</h3>
+   Ouvre le menu de partage du téléphone. <b>Dropbox se trouve dans la liste du bas</b>
+   (« Enregistrer dans Dropbox »), pas dans la rangée d'icônes du haut — il faut faire
+   défiler. Si Dropbox n'y est pas du tout, c'est que l'application n'est pas installée
+   sur ce téléphone.</div>
+  <div class="etape"><h3>Enregistrer dans Fichiers</h3>
+   Dépose le fichier dans l'application Fichiers de l'iPhone. De là, <b>Dropbox apparaît
+   comme un dossier</b> : vous pouvez l'y glisser. C'est le chemin de secours quand le
+   menu de partage ne propose pas ce qu'il faut.</div>
  </div>
- <div class="sh-bas"><button class="btn or plein" id="fx-ok">Enregistrer / Envoyer</button></div>
+ <div class="sh-bas">
+  <button class="btn" id="fx-fichiers">Enregistrer</button>
+  <button class="btn or" id="fx-ok">Envoyer vers…</button>
+ </div>
 </div></div>
 
 <div id="visio"><img id="visio-img" alt=""><button id="visio-x">✕</button></div>
@@ -1237,7 +1247,7 @@ function telecharger(blob,nom){
   urlsSorties.splice(0).forEach(function(u){try{URL.revokeObjectURL(u);}catch(e){}});
   var u=URL.createObjectURL(blob), a=document.createElement("a");
   urlsSorties.push(u);
-  a.href=u; a.download=nom; a.target="_blank"; a.rel="noopener"; a.style.display="none";
+  a.href=u; a.download=nom; a.rel="noopener"; a.style.display="none";
   document.body.appendChild(a); a.click();
   setTimeout(function(){ try{a.remove();}catch(e){} },3000);
 }
@@ -1253,9 +1263,15 @@ function sortir(blob,nom,titre){
   $("fx-taille").textContent=(blob.size<1024)?(blob.size+" octets")
     :((blob.size<1048576)?((blob.size/1024).toFixed(blob.size<10240?1:0)+" Ko")
                          :((blob.size/1048576).toFixed(2)+" Mo"));
-  $("fx-note").innerHTML=(blob.size>20*1048576)
-    ?"Ce fichier est trop lourd pour un mail : passez par <b>Dropbox</b>."
-    :"";
+  var f=null;
+  try{ f=new File([blob],nom,{type:blob.type||"application/octet-stream"}); }catch(e){}
+  var partageOk=!!(f&&navigator.share&&navigator.canShare&&navigator.canShare({files:[f]}));
+  $("fx-ok").disabled=!partageOk;
+  $("fx-note").innerHTML=(!partageOk
+      ?'<b class="wa">Ce téléphone ne sait pas partager de fichier depuis une page web.</b>'+
+       ' Utilisez « Enregistrer », puis rangez le fichier depuis l\'application Fichiers.<br><br>'
+      :"")
+    +((blob.size>20*1048576)?"Ce fichier est trop lourd pour un mail : passez par <b>Dropbox</b>.":"");
   ouvrir("sh-fichier");
 }
 function remettreFichier(){
@@ -1268,13 +1284,17 @@ function remettreFichier(){
       fermer("sh-fichier"); toast("Fichier transmis");
     },function(err){
       if(err&&err.name==="AbortError")return;      /* l'utilisateur a renoncé */
-      telecharger(b,nom); fermer("sh-fichier");
-      toast("Partage impossible — fichier téléchargé",4000);
+      enregistrerFichier();
+      toast("Partage refusé par le téléphone — fichier enregistré",4500);
     });
-  }else{
-    telecharger(b,nom); fermer("sh-fichier");
-    toast("Fichier téléchargé : "+nom,4000);
-  }
+  }else enregistrerFichier();
+}
+function enregistrerFichier(){
+  if(!fichierPret)return;
+  if(/\.zip$/i.test(fichierPret.nom))marquerTransmis();
+  telecharger(fichierPret.blob,fichierPret.nom);
+  fermer("sh-fichier");
+  toast("Fichier enregistré : "+fichierPret.nom,4500);
 }
 function csvVal(v){
   v=(v==null)?"":String(v);
@@ -2112,6 +2132,7 @@ function brancher(){
     rappelMasqueA=Date.now(); rappelMasqueN=nonTransmises(); majRappel();
   });
   $("fx-ok").addEventListener("click",remettreFichier);
+  $("fx-fichiers").addEventListener("click",enregistrerFichier);
   $("b-restaure").addEventListener("click",function(){$("f-restaure").click();});
   $("f-restaure").addEventListener("change",function(e){
     if(e.target.files[0])restaurer(e.target.files[0]); e.target.value="";
