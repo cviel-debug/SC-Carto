@@ -42,9 +42,9 @@ Deux fichiers apparaissent à côté du DXF :
 
 Le résultat ne convient pas ? On relance en jetant d'autres calques, ça ne coûte rien.
 
-### `2 - Rendre le plan au client (glisser le JSON ici).bat`
+### `2 - Rendre le plan au client (glisser le relevé ici).bat`
 
-Glissez la **sauvegarde JSON** de l'application sur l'icône. La fenêtre réclame
+Glissez le **ZIP exporté** par l'application sur l'icône. La fenêtre réclame
 ensuite deux fichiers, l'un après l'autre : **glissez-les dans la fenêtre**
 (le chemin s'écrit tout seul), puis Entrée.
 
@@ -135,13 +135,14 @@ Reprend le DXF d'origine **sans y toucher** et ajoute un calque
 le numéro en texte à côté, aux coordonnées exactes du dessin.
 
 ```bash
-python points2dxf.py --json releve.json --dxf usine.dxf --calage fond.calage.json
+python points2dxf.py --json SC-Carto_PALM_Mortagne_20260819.zip --dxf usine.dxf --calage fond.calage.json
 ```
 
 Sortie : `usine_boites.dxf`.
 
-Le fichier `releve.json` est la **sauvegarde JSON** exportée par l'application
-(la version « légère » suffit, elle ne contient pas les photos).
+L'option `--json` accepte **le ZIP exporté par l'application** (il en extrait
+`releve.json` tout seul) aussi bien qu'un fichier `.json` produit par les
+versions précédentes.
 
 ### Options
 

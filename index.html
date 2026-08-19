@@ -350,29 +350,22 @@ select{-webkit-appearance:none;appearance:none;
       téléphone au moment où vous le saisissez. Cet écran ne sert qu'à <b>transmettre</b>
       le relevé au PC ou au client.</p>
     </div>
-    <div class="carte">
-     <h3>Listing CSV</h3>
-     <p class="info">Numéro, statut, note, X/Y plan, latitude/longitude, date, photos.
-      S'ouvre dans Excel (séparateur point-virgule).</p>
-     <button class="btn plein or" id="b-exp-csv">Exporter le CSV</button>
-    </div>
-    <div class="carte">
-     <h3>Dossier complet ZIP</h3>
-     <p class="info">Le CSV + toutes les photos renommées par numéro (BD-001_1.jpg, BD-001_2.jpg…).
-      C'est ce qu'on envoie au client.</p>
-     <button class="btn plein or" id="b-exp-zip">Exporter le ZIP</button>
-    </div>
-    <div class="carte">
-     <h3>Fichier de reprise</h3>
-     <p class="info">Sert à deux choses : <b>reprendre le relevé sur un autre téléphone</b>,
-      et <b>regénérer le plan AutoCAD</b> avec points2dxf.py.</p>
-     <button class="btn plein or" id="b-exp-json">Avec les photos</button>
-     <div style="height:10px"></div>
-     <button class="btn plein" id="b-exp-json-leger">Sans les photos (fichier léger)</button>
+    <button class="btn plein or" id="b-exporter" style="min-height:74px;font-size:19px">
+     <svg viewBox="0 0 24 24" style="width:26px;height:26px"><path d="M12 3v12M8 11l4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+     Exporter le relevé</button>
+    <div class="carte" style="margin-top:14px">
+     <h3>Ce que contient le fichier</h3>
+     <div class="kv"><b>releve.csv</b><span>pour le tableur</span></div>
+     <div class="kv"><b>photos/</b><span>BD-001_1.jpg…</span></div>
+     <div class="kv"><b>le plan</b><span>tel qu'importé</span></div>
+     <div class="kv" style="border:0"><b>releve.json</b><span>pour le DXF et la reprise</span></div>
+     <p class="info" style="margin:12px 0 0">Un seul fichier ZIP. Le client l'ouvre et trouve son
+      listing et ses photos ; vous le glissez sur l'icône <b>n° 2</b> du PC pour obtenir son plan
+      AutoCAD ; et il permet de reprendre le relevé sur un autre téléphone.</p>
     </div>
     <div class="rub">Reprendre un relevé</div>
-    <p class="info">Ouvre un fichier de reprise. Le projet est ajouté à côté des projets
-     existants, rien n'est écrasé.</p>
+    <p class="info">Ouvre un fichier exporté (ZIP, ou ancien JSON). Le projet est ajouté à côté
+     des projets existants, rien n'est écrasé.</p>
     <button class="btn plein" id="b-restaure">
      <svg viewBox="0 0 24 24"><path d="M12 20V8M8 12l4-4 4 4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
      Ouvrir un fichier de reprise</button>
@@ -536,8 +529,10 @@ select{-webkit-appearance:none;appearance:none;
    <span style="color:#E5484D">●</span> à identifier &nbsp;
    <span style="color:#FF9C2E">●</span> identifiée &nbsp;
    <span style="color:#25C05A">●</span> traitée</div>
-  <div class="etape"><h3>6. Exporter</h3>CSV pour le tableur, ZIP avec toutes les photos,
-   JSON pour la sauvegarde et pour regénérer le DXF avec <b>points2dxf.py</b>.</div>
+  <div class="etape"><h3>6. Exporter</h3><b>Rien à enregistrer :</b> tout est écrit dans le
+   téléphone au fur et à mesure. Le bouton <b>Exporter le relevé</b> sert seulement à sortir
+   un fichier ZIP unique — le listing, les photos, le plan et de quoi regénérer le DXF.
+   Le soir, on l'envoie dans Dropbox.</div>
   <div class="etape"><h3>7. En plein soleil</h3>Le bouton <b>☀</b> en haut à droite du plan passe le
    fond en blanc : le plan redevient lisible dehors.</div>
   <p class="info" style="margin-top:18px">Aucune donnée ne sort du téléphone. Pensez à exporter
@@ -565,7 +560,7 @@ select{-webkit-appearance:none;appearance:none;
 <input type="file" id="f-fond" accept="image/png,image/jpeg,image/svg+xml,.svg,.png,.jpg,.jpeg" class="hide">
 <input type="file" id="f-photo" accept="image/*" capture="environment" class="hide">
 <input type="file" id="f-galerie" accept="image/*" multiple class="hide">
-<input type="file" id="f-restaure" accept="application/json,.json" class="hide">
+<input type="file" id="f-restaure" accept=".zip,.json,application/zip,application/json" class="hide">
 
 <script>
 /* =========================================================================
@@ -1290,12 +1285,6 @@ function construireCSV(par){
   return "\uFEFF" + l.join("\r\n") + "\r\n";
 }
 function baseNom(){ return "SC-Carto_"+assainir(S.projet.nom)+"_"+fmtFichier(); }
-function exportCSV(){
-  if(!verifPoints())return;
-  nomsPhotos().then(function(par){
-    sortir(new Blob([construireCSV(par)],{type:"text/csv;charset=utf-8"}),baseNom()+".csv","Listing SC Carto");
-  });
-}
 /* --- écriture ZIP « stocké » (sans compression) : les JPEG ne se compressent pas --- */
 var CRCT=(function(){var t=new Uint32Array(256),c,n,k;
   for(n=0;n<256;n++){c=n;for(k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}
@@ -1330,30 +1319,50 @@ function zipCreer(entrees){
   return new Blob(parts.concat(central,[eo.buffer]),{type:"application/zip"});
 }
 function u8(blob){return blob.arrayBuffer().then(function(b){return new Uint8Array(b);});}
-function exportZIP(){
+/* Un seul fichier pour tout : le tableur du client, ses photos, et de quoi
+   reprendre le relevé ou regénérer le DXF. Les photos y restent des photos —
+   quatre fois plus léger que de les encoder en texte dans un JSON. */
+function exporterReleve(){
   if(!verifPoints())return;
-  toast("Préparation du ZIP…",8000);
+  toast("Préparation du dossier…",9000);
+  var pr=S.projet, ent=[], nomFond=null;
   nomsPhotos().then(function(par){
-    var ent=[{nom:"releve.csv",data:new TextEncoder().encode(construireCSV(par))}];
-    var liste=[];
-    S.points.forEach(function(p){ (par[p.id]||[]).forEach(function(x){liste.push(x);}); });
+    ent.push({nom:"releve.csv",data:new TextEncoder().encode(construireCSV(par))});
     var ch=Promise.resolve();
-    liste.forEach(function(x){
-      ch=ch.then(function(){return u8(x.blob).then(function(d){ent.push({nom:"photos/"+x.nom,data:d});});});
+    if(pr.fond&&pr.fond.blob){
+      nomFond="plan"+(/svg/i.test(pr.fond.type)?".svg":(/png/i.test(pr.fond.type)?".png":".jpg"));
+      ch=ch.then(function(){return u8(pr.fond.blob).then(function(d){
+        ent.push({nom:nomFond,data:d});});});
+    }
+    var lot=[];
+    S.points.forEach(function(p){ (par[p.id]||[]).forEach(function(x){lot.push(x);}); });
+    lot.forEach(function(x,i){
+      ch=ch.then(function(){
+        if(lot.length>6&&i%5===0)toast("Dossier… photo "+(i+1)+" / "+lot.length,9000);
+        return u8(x.blob).then(function(d){ent.push({nom:"photos/"+x.nom,data:d});});
+      });
     });
     return ch.then(function(){
-      sortir(zipCreer(ent),baseNom()+".zip","Dossier SC Carto");
+      var rec={format:"sc-carto",version:2,application:"SC Carto v"+VERSION,exporte:nowISO(),
+        projet:{id:pr.id,nom:pr.nom,prefixe:pr.prefixe,compteur:pr.compteur,
+                cree:pr.cree,modifie:pr.modifie,calage:pr.calage||null,
+                fond:pr.fond?{nom:pr.fond.nom,type:pr.fond.type,largeur:pr.fond.largeur,
+                              hauteur:pr.fond.hauteur,fichier:nomFond}:null},
+        points:S.points.map(function(pt){
+          return {id:pt.id,couche:pt.couche||"boites_derivation",numero:pt.numero,
+            x:Math.round(pt.x*100)/100, y:Math.round(pt.y*100)/100,
+            lat:pt.lat!=null?pt.lat:null, lon:pt.lon!=null?pt.lon:null,
+            statut:pt.statut, note:pt.note||"", cree:pt.cree, modifie:pt.modifie,
+            photos:(par[pt.id]||[]).map(function(x){return {nom:x.nom,fichier:"photos/"+x.nom};})};
+        })};
+      ent.push({nom:"releve.json",data:new TextEncoder().encode(JSON.stringify(rec,null,1))});
+      sortir(zipCreer(ent),baseNom()+".zip","Relevé SC Carto");
     });
-  })["catch"](function(e){toast("Erreur ZIP : "+e.message,4000);});
+  })["catch"](function(e){toast("Erreur : "+e.message,5000);});
 }
-function blobVersDataURL(b){
-  return new Promise(function(res,rej){
-    var fr=new FileReader();
-    fr.onload=function(){res(fr.result);};
-    fr.onerror=function(){rej(fr.error||new Error("Lecture impossible"));};
-    fr.readAsDataURL(b);
-  });
-}
+
+/* Sert encore à relire les fichiers JSON produits par les versions précédentes,
+   qui encodaient les photos en texte. */
 function dataURLversBlob(u){
   var i=String(u).indexOf(","); if(i<0)throw new Error("Donnée invalide");
   var type=(/data:([^;,]+)/.exec(u.slice(0,i))||[])[1]||"application/octet-stream";
@@ -1361,104 +1370,107 @@ function dataURLversBlob(u){
   for(var j=0;j<n;j++)a[j]=bin.charCodeAt(j);
   return new Blob([a],{type:type});
 }
-function exportJSON(avecPhotos){
-  if(!S.projet){toast("Aucun projet");return;}
-  toast("Préparation de la sauvegarde…",9000);
-  var pr=S.projet;
-  var enTete={format:"sc-carto",version:1,application:"SC Carto v"+VERSION,exporte:nowISO(),
-    projet:{id:pr.id,nom:pr.nom,prefixe:pr.prefixe,compteur:pr.compteur,
-            cree:pr.cree,modifie:pr.modifie,calage:pr.calage||null,fond:null}};
-  var morceaux=[], par={};
 
-  nomsPhotos().then(function(p){
-    par=p;
-    if(pr.fond){
-      enTete.projet.fond={nom:pr.fond.nom,type:pr.fond.type,
-                          largeur:pr.fond.largeur,hauteur:pr.fond.hauteur};
-      if(avecPhotos&&pr.fond.blob){
-        return blobVersDataURL(pr.fond.blob).then(function(u){enTete.projet.fond.donnees=u;});
-      }
-    }
-    return null;
-  }).then(function(){
-    /* Le document est écrit par morceaux plutôt qu'assemblé en une seule chaîne :
-       sur un projet chargé en photos, une chaîne unique de plusieurs dizaines de Mo
-       fait tomber le navigateur du téléphone. */
-    var tete=JSON.stringify(enTete,null,1);
-    morceaux.push(tete.replace(/\}\s*$/,"")+',\n "points": [\n');
-    var chaine=Promise.resolve(), total=S.points.length;
-    S.points.forEach(function(pt,i){
-      chaine=chaine.then(function(){
-        var lot=par[pt.id]||[];
-        var o={id:pt.id, couche:pt.couche||"boites_derivation", numero:pt.numero,
-               x:Math.round(pt.x*100)/100, y:Math.round(pt.y*100)/100,
-               lat:pt.lat!=null?pt.lat:null, lon:pt.lon!=null?pt.lon:null,
-               statut:pt.statut, note:pt.note||"", cree:pt.cree, modifie:pt.modifie,
-               photos:lot.map(function(x){return {nom:x.nom,type:"image/jpeg"};})};
-        if(total>6&&i%5===0)toast("Sauvegarde… "+(i+1)+" / "+total,9000);
-        if(!avecPhotos||!lot.length){
-          morceaux.push((i?",\n":"")+JSON.stringify(o));
-          return null;
-        }
-        var c2=Promise.resolve();
-        lot.forEach(function(x,j){
-          c2=c2.then(function(){
-            return blobVersDataURL(x.blob).then(function(u){o.photos[j].donnees=u;});
-          });
-        });
-        return c2.then(function(){ morceaux.push((i?",\n":"")+JSON.stringify(o)); });
-      });
-    });
-    return chaine;
-  }).then(function(){
-    morceaux.push("\n ]\n}\n");
-    sortir(new Blob(morceaux,{type:"application/json"}),
-           baseNom()+(avecPhotos?"":"_leger")+".json","Sauvegarde SC Carto");
-  })["catch"](function(e){toast("Erreur sauvegarde : "+e.message,5000);});
+/* --- lecture d'un ZIP (symétrique de zipCreer) --- */
+function zipLire(u8t){
+  var dv=new DataView(u8t.buffer,u8t.byteOffset,u8t.byteLength), eo=-1;
+  for(var i=u8t.length-22;i>=0&&i>u8t.length-66000;i--){
+    if(dv.getUint32(i,true)===0x06054b50){eo=i;break;}
+  }
+  if(eo<0)throw new Error("Fichier ZIP illisible");
+  var nb=dv.getUint16(eo+10,true), p=dv.getUint32(eo+16,true);
+  var dec=new TextDecoder(), fichiers={};
+  for(var k=0;k<nb;k++){
+    if(dv.getUint32(p,true)!==0x02014b50)break;
+    var nl=dv.getUint16(p+28,true), el=dv.getUint16(p+30,true), cl=dv.getUint16(p+32,true);
+    var meth=dv.getUint16(p+10,true), csz=dv.getUint32(p+20,true), lo=dv.getUint32(p+42,true);
+    var nom=dec.decode(u8t.slice(p+46,p+46+nl));
+    var deb=lo+30+dv.getUint16(lo+26,true)+dv.getUint16(lo+28,true);
+    fichiers[nom]={methode:meth,donnees:u8t.slice(deb,deb+csz)};
+    p+=46+nl+el+cl;
+  }
+  return fichiers;
 }
+function zipContenu(e){
+  if(!e)return Promise.resolve(null);
+  if(e.methode===0)return Promise.resolve(e.donnees);
+  if(typeof DecompressionStream==="undefined")
+    return Promise.reject(new Error("Ce ZIP est compressé et ce navigateur ne sait pas le lire"));
+  return new Response(new Blob([e.donnees]).stream()
+    .pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer()
+    .then(function(b){return new Uint8Array(b);});
+}
+/* Reprend un relevé depuis le dossier ZIP, ou depuis un ancien fichier JSON. */
 function restaurer(file){
   var fr=new FileReader();
+  fr.onerror=function(){toast("Lecture du fichier impossible",4000);};
   fr.onload=function(){
-    var d;
-    try{ d=JSON.parse(fr.result); }catch(e){ toast("Fichier JSON illisible",4000); return; }
-    if(!d||d.format!=="sc-carto"||!d.projet){toast("Ce n'est pas une sauvegarde SC Carto",4000);return;}
-    if(!confirm("Restaurer le projet « "+(d.projet.nom||"?")+" » ?\n"+
-      ((d.points||[]).length)+" boîte(s). Il sera ajouté à côté des projets existants."))return;
-    toast("Restauration en cours…",9000);
-    var np=projetVide(d.projet.nom||"Projet restauré");
-    np.prefixe=d.projet.prefixe||"BD-"; np.compteur=d.projet.compteur||0;
-    np.cree=d.projet.cree||nowISO(); np.calage=d.projet.calage||null;
-    var ch=Promise.resolve();
-    if(d.projet.fond&&d.projet.fond.donnees){
-      try{
-        np.fond={blob:dataURLversBlob(d.projet.fond.donnees),nom:d.projet.fond.nom||"plan",
-                 type:d.projet.fond.type||"image/png",
-                 largeur:d.projet.fond.largeur,hauteur:d.projet.fond.hauteur};
-      }catch(e){}
+    var brut=new Uint8Array(fr.result), fichiers=null, texte=null;
+    try{
+      if(brut.length>4&&brut[0]===0x50&&brut[1]===0x4B){
+        fichiers=zipLire(brut);
+        var j=fichiers["releve.json"];
+        if(!j)throw new Error("Ce ZIP ne contient pas de relevé SC Carto");
+        return zipContenu(j).then(function(d){
+          reprendre(JSON.parse(new TextDecoder().decode(d)),fichiers);
+        })["catch"](function(e){toast(e.message,5000);});
+      }
+      texte=new TextDecoder().decode(brut);
+      reprendre(JSON.parse(texte),null);
+    }catch(e){ toast("Fichier illisible : "+e.message,5000); }
+  };
+  fr.readAsArrayBuffer(file);
+}
+function reprendre(d,fichiers){
+  if(!d||d.format!=="sc-carto"||!d.projet){toast("Ce n'est pas un relevé SC Carto",4000);return;}
+  if(!confirm("Reprendre le projet « "+(d.projet.nom||"?")+" » ?\n"+
+    ((d.points||[]).length)+" boîte(s). Il sera ajouté à côté des projets existants."))return;
+  toast("Reprise en cours…",9000);
+  var np=projetVide(d.projet.nom||"Projet repris");
+  np.prefixe=d.projet.prefixe||"BD-"; np.compteur=d.projet.compteur||0;
+  np.cree=d.projet.cree||nowISO(); np.calage=d.projet.calage||null;
+
+  /* v2 : le fichier est dans le ZIP ; v1 : encodé en texte dans le JSON */
+  function charger(ref,type){
+    if(!ref)return Promise.resolve(null);
+    if(ref.donnees){ try{ return Promise.resolve(dataURLversBlob(ref.donnees)); }
+                     catch(e){ return Promise.resolve(null); } }
+    if(ref.fichier&&fichiers){
+      return zipContenu(fichiers[ref.fichier]).then(function(d2){
+        return d2?new Blob([d2],{type:type||"application/octet-stream"}):null;
+      })["catch"](function(){return null;});
     }
-    ch=ch.then(function(){return dbPut("projets",np);});
-    (d.points||[]).forEach(function(pt){
-      var id=uid();
+    return Promise.resolve(null);
+  }
+  var ch=charger(d.projet.fond,(d.projet.fond&&d.projet.fond.type)||"image/png")
+    .then(function(b){
+      if(b&&d.projet.fond)np.fond={blob:b,nom:d.projet.fond.nom||"plan",
+        type:d.projet.fond.type||"image/png",
+        largeur:d.projet.fond.largeur,hauteur:d.projet.fond.hauteur};
+      return dbPut("projets",np);
+    });
+  (d.points||[]).forEach(function(pt){
+    var id=uid();
+    ch=ch.then(function(){
+      return dbPut("points",{id:id,projetId:np.id,couche:pt.couche||"boites_derivation",
+        numero:pt.numero||"?", x:+pt.x||0, y:+pt.y||0,
+        lat:(pt.lat==null?null:+pt.lat), lon:(pt.lon==null?null:+pt.lon),
+        statut:ST[pt.statut]?pt.statut:"a_identifier", note:pt.note||"",
+        cree:pt.cree||nowISO(), modifie:pt.modifie||nowISO()});
+    });
+    (pt.photos||[]).forEach(function(f,i){
       ch=ch.then(function(){
-        return dbPut("points",{id:id,projetId:np.id,couche:pt.couche||"boites_derivation",
-          numero:pt.numero||"?", x:+pt.x||0, y:+pt.y||0,
-          lat:(pt.lat==null?null:+pt.lat), lon:(pt.lon==null?null:+pt.lon),
-          statut:ST[pt.statut]?pt.statut:"a_identifier", note:pt.note||"",
-          cree:pt.cree||nowISO(), modifie:pt.modifie||nowISO()});
-      });
-      (pt.photos||[]).forEach(function(f,i){
-        if(!f.donnees)return;
-        ch=ch.then(function(){
+        return charger(f,"image/jpeg").then(function(b){
+          if(!b)return null;
           return dbPut("photos",{id:uid(),pointId:id,projetId:np.id,
-            blob:dataURLversBlob(f.donnees),ordre:i,cree:pt.cree||nowISO()});
+            blob:b,ordre:i,cree:pt.cree||nowISO()});
         });
       });
     });
-    ch.then(function(){return chargerProjet(np.id);})
-      .then(function(){toast("Projet restauré : "+np.nom,3500);fermerTout();allerVue("v-plan");})
-      ["catch"](function(e){toast("Échec de la restauration : "+e.message,5000);});
-  };
-  fr.readAsText(file);
+  });
+  ch.then(function(){return chargerProjet(np.id);})
+    .then(function(){toast("Relevé repris : "+np.nom,3500);fermerTout();allerVue("v-plan");})
+    ["catch"](function(e){toast("Échec de la reprise : "+e.message,5000);});
 }
 function verifPoints(){
   if(!S.projet){toast("Aucun projet");return false;}
@@ -2015,10 +2027,7 @@ function brancher(){
   });
 
   /* --- exports --- */
-  $("b-exp-csv").addEventListener("click",exportCSV);
-  $("b-exp-zip").addEventListener("click",exportZIP);
-  $("b-exp-json").addEventListener("click",function(){exportJSON(true);});
-  $("b-exp-json-leger").addEventListener("click",function(){exportJSON(false);});
+  $("b-exporter").addEventListener("click",exporterReleve);
   $("fx-ok").addEventListener("click",remettreFichier);
   $("b-restaure").addEventListener("click",function(){$("f-restaure").click();});
   $("f-restaure").addEventListener("change",function(e){

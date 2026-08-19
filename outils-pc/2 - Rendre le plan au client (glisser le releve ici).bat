@@ -11,7 +11,7 @@ if "%~1"=="" (
   echo    SC Carto - rendre le plan enrichi au client
   echo   ==========================================================
   echo.
-  echo    Mode d'emploi : prenez le fichier JSON exporte par
+  echo    Mode d'emploi : prenez le fichier ZIP exporte par
   echo    l'application et GLISSEZ-LE sur cette icone.
   echo.
   echo    Ne double-cliquez pas dessus : il ne saurait pas quoi faire.

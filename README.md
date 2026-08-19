@@ -169,14 +169,27 @@ en blanc. Le reste de l'interface ne bouge pas.
 fonctionnement hors ligne, le GPS, la caméra, l'espace disponible, et affiche
 la version.
 
-### Ce que produisent les exports
+### Enregistrement et export : deux choses différentes
 
-| Export | Contenu |
+**Il n'y a rien à enregistrer.** Chaque boîte, chaque photo, chaque changement de
+statut est écrit dans le téléphone au moment de la saisie. On peut fermer
+l'application, la tuer, éteindre le téléphone : tout est là au redémarrage.
+
+L'onglet **Exporter** ne sert qu'à *sortir* le relevé du téléphone, avec un
+bouton unique qui produit **un seul fichier ZIP** :
+
+| Dans le ZIP | Pour qui |
 |---|---|
-| **CSV** | numéro ; statut ; note ; X/Y plan ; latitude ; longitude ; date ; noms des photos — séparateur `;`, s'ouvre directement dans Excel |
-| **ZIP** | le CSV + toutes les photos renommées `BD-001_1.jpg`, `BD-001_2.jpg`… |
-| **JSON complet** | sauvegarde intégrale : projet, calage, fond de plan, points, photos. Restaurable sur un autre téléphone |
-| **JSON léger** | idem sans les photos ni le fond — c'est le fichier qu'attend `points2dxf.py` |
+| `releve.csv` | le tableur — numéro ; statut ; note ; X/Y plan ; latitude ; longitude ; date ; photos |
+| `photos/BD-001_1.jpg`… | le client, renommées par numéro |
+| `plan.svg` (ou `.png`) | le fond de plan tel qu'importé |
+| `releve.json` | `points2dxf.py`, et la reprise du relevé sur un autre téléphone |
+
+Le même fichier sert donc au client, au bureau d'études et à la reprise. Les
+photos y restent des photos : il est environ quatre fois plus léger qu'un export
+qui les encoderait en texte.
+
+*Reprendre un relevé* rouvre ce ZIP (les anciens fichiers `.json` restent acceptés).
 
 ---
 

@@ -30,6 +30,7 @@ import json
 import math
 import os
 import sys
+import zipfile
 from datetime import datetime
 
 try:
@@ -59,6 +60,19 @@ LIBELLE_STATUT = {
     "identifiee": "identifiee",
     "traitee": "traitee",
 }
+
+
+def charger_releve(chemin):
+    """Accepte le ZIP exporte par l'application, ou un fichier JSON seul."""
+    if zipfile.is_zipfile(chemin):
+        with zipfile.ZipFile(chemin) as z:
+            noms = [n for n in z.namelist() if n.lower().endswith("releve.json")]
+            if not noms:
+                sys.exit("%s ne contient pas de releve SC Carto (releve.json absent)." % chemin)
+            with z.open(noms[0]) as f:
+                return json.loads(f.read().decode("utf-8"))
+    with open(chemin, encoding="utf-8") as f:
+        return json.load(f)
 
 
 def ouvrir(chemin):
@@ -104,7 +118,8 @@ def main():
         description="Reinjecte les boites de derivation de SC Carto dans un DXF.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__)
-    ap.add_argument("--json", required=True, help="export JSON de SC Carto")
+    ap.add_argument("--json", required=True,
+                    help="fichier exporte par SC Carto (le ZIP, ou un ancien .json)")
     ap.add_argument("--dxf", required=True, help="DXF d'origine du client")
     ap.add_argument("--calage", help="fichier .calage.json produit par dxf2fond.py")
     ap.add_argument("-o", "--sortie", help="DXF produit (defaut : <dxf>_boites.dxf)")
@@ -130,8 +145,7 @@ def main():
             sys.exit("Fichier introuvable : %s" % f)
 
     # ---- releve ----------------------------------------------------------- #
-    with open(a.json, encoding="utf-8") as f:
-        rel = json.load(f)
+    rel = charger_releve(a.json)
     if rel.get("format") != "sc-carto":
         sys.exit("%s n'est pas un export SC Carto." % a.json)
     points = [p for p in rel.get("points", [])
