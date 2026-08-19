@@ -343,9 +343,13 @@ select{-webkit-appearance:none;appearance:none;
   <!-- ---------- Vue EXPORT ---------- -->
   <section class="vue" id="v-export">
    <div class="scroll">
-    <div class="rub">Exporter le relevé</div>
-    <p class="info">Le fichier est déposé dans les téléchargements du téléphone.
-     De là : messagerie, Drive, Dropbox — vous choisissez.</p>
+    <div class="rub">Sortir le relevé du téléphone</div>
+    <div class="carte" style="border-left:5px solid var(--vert)">
+     <p class="info" style="margin:0"><b style="color:var(--vert)">Rien à enregistrer :
+      c'est déjà fait.</b><br>Chaque boîte, chaque photo, chaque statut est écrit dans le
+      téléphone au moment où vous le saisissez. Cet écran ne sert qu'à <b>transmettre</b>
+      le relevé au PC ou au client.</p>
+    </div>
     <div class="carte">
      <h3>Listing CSV</h3>
      <p class="info">Numéro, statut, note, X/Y plan, latitude/longitude, date, photos.
@@ -359,19 +363,19 @@ select{-webkit-appearance:none;appearance:none;
      <button class="btn plein or" id="b-exp-zip">Exporter le ZIP</button>
     </div>
     <div class="carte">
-     <h3>Sauvegarde JSON</h3>
-     <p class="info">Sauvegarde du projet, restaurable sur un autre téléphone.
-      C'est aussi le fichier attendu par <b>points2dxf.py</b> pour regénérer le plan AutoCAD.</p>
-     <button class="btn plein or" id="b-exp-json">Sauvegarde complète (avec photos)</button>
+     <h3>Fichier de reprise</h3>
+     <p class="info">Sert à deux choses : <b>reprendre le relevé sur un autre téléphone</b>,
+      et <b>regénérer le plan AutoCAD</b> avec points2dxf.py.</p>
+     <button class="btn plein or" id="b-exp-json">Avec les photos</button>
      <div style="height:10px"></div>
-     <button class="btn plein" id="b-exp-json-leger">Sauvegarde légère (sans photos)</button>
+     <button class="btn plein" id="b-exp-json-leger">Sans les photos (fichier léger)</button>
     </div>
-    <div class="rub">Restaurer</div>
-    <p class="info">Importe un fichier JSON de sauvegarde. Le projet est ajouté à côté des projets
+    <div class="rub">Reprendre un relevé</div>
+    <p class="info">Ouvre un fichier de reprise. Le projet est ajouté à côté des projets
      existants, rien n'est écrasé.</p>
     <button class="btn plein" id="b-restaure">
      <svg viewBox="0 0 24 24"><path d="M12 20V8M8 12l4-4 4 4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-     Restaurer une sauvegarde</button>
+     Ouvrir un fichier de reprise</button>
     <div class="pied">Aucun envoi réseau : tout se fait dans le téléphone.</div>
    </div>
   </section>
@@ -453,7 +457,10 @@ select{-webkit-appearance:none;appearance:none;
 
 <!-- ================= Feuilles ================= -->
 <div class="sheet" id="sh-fiche"><div>
- <div class="sh-top"><h2 id="fi-titre">Boîte</h2><button class="x" data-close="sh-fiche">✕</button></div>
+ <div class="sh-top"><h2 id="fi-titre">Boîte</h2>
+  <span id="fi-etat" style="font-size:13px;font-weight:700;color:var(--vert);opacity:0;
+   transition:opacity .3s;white-space:nowrap">Enregistré</span>
+  <button class="x" data-close="sh-fiche">✕</button></div>
  <div class="sh-body">
   <label class="champ"><span>Numéro</span><input type="text" id="fi-num"></label>
   <label class="champ"><span>Statut</span></label>
@@ -483,7 +490,7 @@ select{-webkit-appearance:none;appearance:none;
   <button class="btn plein rouge" id="fi-suppr">Supprimer cette boîte</button>
  </div>
  <div class="sh-bas">
-  <button class="btn or plein" id="fi-ok">Enregistrer</button>
+  <button class="btn or plein" id="fi-ok">Fermer</button>
  </div>
 </div></div>
 
@@ -1134,7 +1141,9 @@ function ajouterPhotos(files){
     rendreGalerie(); rendreListe(); toast(files.length+" photo(s) ajoutée(s)");
   })["catch"](function(e){ toast("Erreur photo : "+e.message,4000); });
 }
-function enregistrerFiche(silencieux){
+/* Tout est écrit dans la base au fil de la saisie : il n'y a rien à « valider ».
+   `leger` évite de redessiner tous les marqueurs à chaque lettre tapée dans la note. */
+function enregistrerFiche(leger){
   if(!fiche.id)return Promise.resolve();
   var p=null;
   for(var i=0;i<S.points.length;i++) if(S.points[i].id===fiche.id) p=S.points[i];
@@ -1142,9 +1151,19 @@ function enregistrerFiche(silencieux){
   var num=($("fi-num").value||"").trim()||p.numero;
   p.numero=num; p.note=$("fi-note").value||""; p.statut=fiche.statut; p.modifie=nowISO();
   return dbPut("points",p).then(function(){
-    trierPointsInternes(); dessinerMarqueurs(); rendreListe();
-    if(!silencieux)toast("Enregistré");
+    if(!leger){ trierPointsInternes(); dessinerMarqueurs(); rendreListe(); }
   });
+}
+var ficheT=null, etatT=null;
+function ficheModifiee(leger){
+  clearTimeout(ficheT);
+  ficheT=setTimeout(function(){
+    enregistrerFiche(leger).then(function(){
+      var e=$("fi-etat"); if(!e)return;
+      e.style.opacity="1";
+      clearTimeout(etatT); etatT=setTimeout(function(){e.style.opacity="0";},1500);
+    });
+  },leger?450:0);
 }
 function supprimerPoint(id){
   return dbDelPar("photos","pointId",id).then(function(){return dbDel("points",id);})
@@ -1899,7 +1918,7 @@ function brancher(){
   qsa("[data-close]").forEach(function(b){
     b.addEventListener("click",function(){
       var c=b.dataset.close;
-      if(c==="sh-fiche")enregistrerFiche(true);
+      if(c==="sh-fiche")enregistrerFiche(false);
       fermer(c);
     });
   });
@@ -1947,9 +1966,15 @@ function brancher(){
     b.addEventListener("click",function(){
       fiche.statut=b.dataset.v;
       qsa("#fi-statut button").forEach(function(o){o.classList.toggle("on",o===b);});
+      ficheModifiee(false);
     });
   });
-  $("fi-ok").addEventListener("click",function(){enregistrerFiche().then(function(){fermer("sh-fiche");});});
+  $("fi-note").addEventListener("input",function(){ficheModifiee(true);});
+  $("fi-num").addEventListener("input",function(){ficheModifiee(true);});
+  $("fi-num").addEventListener("change",function(){ficheModifiee(false);});
+  $("fi-ok").addEventListener("click",function(){
+    enregistrerFiche(false).then(function(){fermer("sh-fiche");});
+  });
   $("fi-suppr").addEventListener("click",function(){
     var p=null; for(var i=0;i<S.points.length;i++)if(S.points[i].id===fiche.id)p=S.points[i];
     if(!p)return;
@@ -2139,6 +2164,11 @@ function brancher(){
   });
   window.addEventListener("beforeunload",function(){
     if($("sh-fiche").classList.contains("on"))enregistrerFiche(true);
+  });
+  /* Sur téléphone la page est souvent tuée sans « beforeunload » : on écrit
+     aussi dès qu'elle passe en arrière-plan. */
+  document.addEventListener("visibilitychange",function(){
+    if(document.hidden&&$("sh-fiche").classList.contains("on"))enregistrerFiche(true);
   });
 }
 
