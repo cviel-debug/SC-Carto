@@ -1,0 +1,1885 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>SC Carto</title>
+<meta name="description" content="Cartographie terrain Sari-Concept — recensement de boîtes de dérivation">
+<meta name="theme-color" content="#0A1422">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SC Carto">
+<style>
+/* ===================== Charte SC ===================== */
+:root{
+ --bg:#0A1422; --bg2:#0F1D31; --bg3:#162844; --bd:#1F3354; --bd2:#2C4470;
+ --or:#f5b301; --bleu:#3B6DBE;
+ --tx:#F5F5F0; --tx2:#9FB7C9; --tx3:#6E8AA0;
+ --rouge:#E5484D; --orange:#FF9C2E; --vert:#25C05A;
+ --r:12px; --sat:env(safe-area-inset-top,0px); --sab:env(safe-area-inset-bottom,0px);
+ --ff:"Segoe UI",-apple-system,BlinkMacSystemFont,Roboto,Arial,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--bg);color:var(--tx);
+ font-family:var(--ff);font-size:17px;-webkit-text-size-adjust:100%;overscroll-behavior:none}
+button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+button{border:0;background:none;cursor:pointer}
+h1,h2,h3{margin:0;font-weight:800}
+.hide{display:none!important}
+
+/* --------- Ouverture SC : cache anti-flash + battement de coeur --------- */
+#sc-boot{position:fixed;inset:0;z-index:99998;background:var(--bg);display:flex;flex-direction:column;
+ align-items:center;justify-content:center;gap:22px}
+#sc-boot svg{position:fixed;inset:0;width:100%;height:100%}
+#sc-boot .trbg,#sc-splash .trbg{stroke:#16283a;stroke-width:2;fill:none;stroke-linecap:round}
+#sc-boot .tr{stroke:var(--or);stroke-width:2;fill:none;stroke-linecap:round;
+ filter:drop-shadow(0 0 4px rgba(245,179,1,.75));stroke-dasharray:1;stroke-dashoffset:1;
+ animation:scloop 2.2s cubic-bezier(.4,0,.2,1) infinite}
+@keyframes scloop{55%{stroke-dashoffset:0}80%{stroke-dashoffset:0;opacity:1}100%{stroke-dashoffset:0;opacity:0}}
+#sc-boot .lg{width:300px;max-width:64vw;position:relative;animation:halo 1.6s ease-in-out infinite}
+@keyframes halo{
+ 0%{filter:drop-shadow(0 0 6px rgba(245,179,1,.22));transform:scale(1)}
+ 12%{filter:drop-shadow(0 0 30px rgba(245,179,1,.9));transform:scale(1.018)}
+ 24%{filter:drop-shadow(0 0 10px rgba(245,179,1,.3));transform:scale(1)}
+ 36%{filter:drop-shadow(0 0 24px rgba(245,179,1,.7));transform:scale(1.012)}
+ 55%,100%{filter:drop-shadow(0 0 6px rgba(245,179,1,.22));transform:scale(1)}}
+#sc-boot .t1{position:relative;color:var(--tx2);font-size:14px;letter-spacing:.35em;text-transform:uppercase}
+#sc-boot .t1 b{color:var(--or);font-weight:700}
+#sc-boot .t2{position:fixed;bottom:calc(26px + var(--sab));left:0;right:0;text-align:center;
+ color:var(--tx2);font-size:12px;letter-spacing:.32em;text-transform:uppercase}
+#sc-boot .t2 span{display:inline-block;width:1.2em;text-align:left}
+#sc-splash{position:fixed;inset:0;z-index:99999;background:var(--bg);display:flex;align-items:center;
+ justify-content:center;cursor:pointer;transition:opacity .45s ease}
+#sc-splash .tr{stroke:var(--or);stroke-width:2;fill:none;stroke-linecap:round;
+ filter:drop-shadow(0 0 4px rgba(245,179,1,.75));stroke-dasharray:1;stroke-dashoffset:1;
+ animation:scdash .7s cubic-bezier(.4,0,.2,1) forwards}
+@keyframes scdash{to{stroke-dashoffset:0}}
+#sc-splash .pad{fill:var(--or);opacity:0;animation:scpad .3s ease forwards;
+ filter:drop-shadow(0 0 6px rgba(245,179,1,.9))}
+@keyframes scpad{to{opacity:1}}
+#sc-splash .lg{opacity:0;transform:scale(.92);width:300px;max-width:64vw;
+ animation:sclogo .85s .55s cubic-bezier(.2,.7,.3,1) forwards}
+@keyframes sclogo{55%{filter:drop-shadow(0 0 28px rgba(245,179,1,.85))}
+ 100%{opacity:1;transform:scale(1);filter:drop-shadow(0 0 12px rgba(245,179,1,.35))}}
+#sc-splash .tt{opacity:0;animation:sctt .5s 1s ease forwards;margin-top:14px;font-size:14px;
+ letter-spacing:.35em;color:var(--tx2);text-transform:uppercase}
+#sc-splash .tt b{color:var(--or);font-weight:700}
+@keyframes sctt{to{opacity:1}}
+
+/* --------- Coque --------- */
+#app{position:fixed;inset:0;display:flex;flex-direction:column;padding-top:var(--sat)}
+header{height:54px;flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:0 12px;
+ background:var(--bg2);border-bottom:2px solid var(--bd);position:relative;z-index:20}
+header .marque{font-size:16px;font-weight:800;letter-spacing:.04em;white-space:nowrap}
+header .marque b{color:var(--or)}
+header .site{flex:1;min-width:0;text-align:right;font-size:14px;color:var(--tx2);
+ overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.badge-v{font-size:11px;font-weight:700;color:var(--bg);background:var(--or);
+ padding:2px 7px;border-radius:99px}
+main{flex:1;position:relative;overflow:hidden}
+.vue{position:absolute;inset:0;display:none;flex-direction:column}
+.vue.on{display:flex}
+
+/* --------- Onglets --------- */
+nav{flex:0 0 auto;display:flex;background:var(--bg2);border-top:2px solid var(--bd);
+ padding-bottom:var(--sab);position:relative;z-index:20}
+nav button{flex:1;min-height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+ gap:3px;color:var(--tx3);font-size:12px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;
+ border-top:3px solid transparent;margin-top:-2px}
+nav button svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2;
+ stroke-linecap:round;stroke-linejoin:round}
+nav button.on{color:var(--or);border-top-color:var(--or);background:rgba(245,179,1,.07)}
+
+/* --------- Vue plan --------- */
+#plan{position:absolute;inset:0;overflow:hidden;background:var(--bg);touch-action:none;
+ -webkit-user-select:none;user-select:none}
+#plan.clair{background:#FFFFFF}
+#world{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform}
+#fond{display:block;max-width:none;pointer-events:none;-webkit-user-drag:none}
+#marqueurs{position:absolute;top:0;left:0;width:0;height:0}
+.mk{position:absolute;width:44px;height:44px;margin:-22px 0 0 -22px;transform:scale(var(--inv,1));
+ transform-origin:50% 50%;display:flex;align-items:center;justify-content:center;touch-action:none}
+.mk i{width:30px;height:30px;border-radius:50%;border:3px solid #fff;display:block;position:relative;
+ box-shadow:0 0 0 2px rgba(0,0,0,.6),0 3px 8px rgba(0,0,0,.5)}
+.mk i:after{content:"";position:absolute;inset:0;border-radius:50%;background:
+ linear-gradient(rgba(0,0,0,0) 44%,rgba(0,0,0,.6) 44%,rgba(0,0,0,.6) 56%,rgba(0,0,0,0) 56%),
+ linear-gradient(90deg,rgba(0,0,0,0) 44%,rgba(0,0,0,.6) 44%,rgba(0,0,0,.6) 56%,rgba(0,0,0,0) 56%)}
+.mk b{position:absolute;top:36px;left:50%;transform:translateX(-50%);white-space:nowrap;
+ font-size:13px;font-weight:800;padding:2px 7px;border-radius:6px;background:rgba(10,20,34,.92);
+ color:#fff;border:1px solid rgba(255,255,255,.35)}
+#plan.clair .mk b{background:rgba(255,255,255,.95);color:#0A1422;border-color:rgba(0,0,0,.5)}
+.mk.st-a i{background:var(--rouge)} .mk.st-i i{background:var(--orange)} .mk.st-t i{background:var(--vert)}
+.mk.sel i{border-color:var(--or);box-shadow:0 0 0 4px rgba(245,179,1,.6),0 3px 8px rgba(0,0,0,.5)}
+.mk.fantome{z-index:5}
+.mk.fantome i{background:var(--or);border-color:#fff;animation:pulse 1.1s ease-in-out infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 12px rgba(245,179,1,.32),0 3px 8px rgba(0,0,0,.5)}}
+#gps-acc{position:absolute;border-radius:50%;background:rgba(46,143,255,.18);
+ border:1px solid rgba(120,180,255,.6);pointer-events:none}
+#gps-dot{position:absolute;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;
+ background:#2E8FFF;border:3px solid #fff;box-shadow:0 0 0 2px rgba(0,0,0,.5);
+ transform:scale(var(--inv,1));transform-origin:50% 50%;pointer-events:none}
+#gps-dot.faible{background:#7B8CA0}
+#gps-acc.faible{background:rgba(123,140,160,.15);border-color:rgba(123,140,160,.5)}
+#plan-vide{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+ justify-content:center;gap:18px;text-align:center;padding:24px;color:var(--tx2)}
+#plan-vide svg{width:76px;height:76px;stroke:var(--bd2);fill:none;stroke-width:1.6}
+#hud{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:8px;z-index:8}
+#hud button{width:54px;height:54px;border-radius:var(--r);background:rgba(15,29,49,.94);
+ border:2px solid var(--bd2);color:var(--tx);font-size:22px;font-weight:800;
+ display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,.45)}
+#hud button.actif{background:var(--or);color:var(--bg);border-color:var(--or)}
+#hud button svg{width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:2;
+ stroke-linecap:round;stroke-linejoin:round}
+#gps-etat{position:absolute;left:10px;top:10px;z-index:8;max-width:58%;font-size:12.5px;font-weight:700;
+ padding:8px 11px;border-radius:10px;background:rgba(15,29,49,.94);border:2px solid var(--bd2);color:var(--tx2)}
+#gps-etat.ok{color:var(--vert);border-color:rgba(37,192,90,.5)}
+#gps-etat.faible{color:var(--orange);border-color:rgba(255,156,46,.5)}
+#btn-add{position:absolute;right:16px;bottom:16px;z-index:9;width:78px;height:78px;border-radius:50%;
+ background:var(--or);color:var(--bg);font-size:44px;font-weight:800;line-height:1;
+ box-shadow:0 6px 18px rgba(0,0,0,.55),0 0 0 4px rgba(10,20,34,.5);
+ display:flex;align-items:center;justify-content:center}
+#btn-add:active{transform:scale(.94)}
+#barre-pose{position:absolute;left:0;right:0;bottom:0;z-index:12;background:var(--bg2);
+ border-top:3px solid var(--or);padding:12px;display:flex;gap:10px;align-items:center}
+#barre-pose p{flex:1;margin:0;font-size:14px;color:var(--tx2);line-height:1.3}
+
+/* --------- Boutons --------- */
+.btn{min-height:58px;padding:12px 18px;border-radius:var(--r);background:var(--bg3);
+ border:2px solid var(--bd2);color:var(--tx);font-size:17px;font-weight:700;
+ display:inline-flex;align-items:center;justify-content:center;gap:9px;text-align:center}
+.btn:active{transform:scale(.98)}
+.btn.or{background:var(--or);border-color:var(--or);color:#0A1422;font-weight:800}
+.btn.rouge{background:transparent;border-color:var(--rouge);color:#FF8085}
+.btn.plein{width:100%}
+.btn.sm{min-height:48px;padding:8px 14px;font-size:15px;border-radius:10px}
+.btn:disabled{opacity:.42}
+.btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;
+ stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+
+/* --------- Formulaires --------- */
+label.champ{display:block;margin:0 0 16px}
+label.champ>span{display:block;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+ color:var(--tx2);margin-bottom:7px}
+input[type=text],input[type=search],input[type=number],select,textarea{width:100%;min-height:56px;
+ padding:12px 14px;border-radius:var(--r);background:#08111D;border:2px solid var(--bd2);
+ color:var(--tx);font-size:18px;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--or)}
+textarea{min-height:112px;resize:vertical;line-height:1.4}
+select{-webkit-appearance:none;appearance:none;
+ background-image:linear-gradient(45deg,transparent 50%,var(--tx2) 50%),
+ linear-gradient(135deg,var(--tx2) 50%,transparent 50%);
+ background-position:calc(100% - 20px) 25px,calc(100% - 13px) 25px;
+ background-size:7px 7px;background-repeat:no-repeat}
+.segs{display:flex;gap:8px}
+.segs button{flex:1;min-height:62px;border-radius:var(--r);border:2px solid var(--bd2);background:var(--bg3);
+ color:var(--tx2);font-size:14px;font-weight:800;padding:6px;line-height:1.15}
+.segs button[data-v=a_identifier].on{background:var(--rouge);border-color:var(--rouge);color:#fff}
+.segs button[data-v=identifiee].on{background:var(--orange);border-color:var(--orange);color:#0A1422}
+.segs button[data-v=traitee].on{background:var(--vert);border-color:var(--vert);color:#0A1422}
+
+/* --------- Feuilles --------- */
+.sheet{position:fixed;inset:0;z-index:60;background:rgba(4,9,16,.74);display:none;align-items:flex-end}
+.sheet.on{display:flex}
+.sheet>div{width:100%;max-height:94%;background:var(--bg);border-top:3px solid var(--or);
+ border-radius:18px 18px 0 0;display:flex;flex-direction:column;animation:up .22s ease}
+@keyframes up{from{transform:translateY(30px);opacity:.3}}
+.sh-top{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:2px solid var(--bd)}
+.sh-top h2{flex:1;font-size:19px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sh-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;
+ padding-bottom:calc(16px + var(--sab))}
+.sh-bas{flex:0 0 auto;padding:12px 16px calc(12px + var(--sab));border-top:2px solid var(--bd);
+ display:flex;gap:10px;background:var(--bg2)}
+.sh-bas .btn{flex:1}
+.x{width:46px;height:46px;border-radius:10px;background:var(--bg3);border:2px solid var(--bd2);
+ font-size:22px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+
+/* --------- Listes --------- */
+.scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px;
+ padding-bottom:calc(24px + var(--sab))}
+.barre-outils{flex:0 0 auto;display:flex;gap:8px;padding:12px 14px;background:var(--bg2);
+ border-bottom:2px solid var(--bd)}
+.barre-outils input{min-height:50px;font-size:16px}
+.barre-outils select{min-height:50px;width:auto;flex:0 0 auto;font-size:15px;padding-right:38px;
+ background-position:calc(100% - 18px) 22px,calc(100% - 11px) 22px}
+.carte{background:var(--bg2);border:2px solid var(--bd);border-radius:var(--r);padding:15px;margin-bottom:12px}
+.carte h3{font-size:17px;margin-bottom:8px}
+.ligne{display:flex;align-items:center;gap:12px;background:var(--bg2);border:2px solid var(--bd);
+ border-radius:var(--r);padding:12px 14px;margin-bottom:10px}
+.pastille{width:20px;height:20px;border-radius:50%;flex:0 0 auto;border:2px solid rgba(255,255,255,.55)}
+.pastille.st-a{background:var(--rouge)} .pastille.st-i{background:var(--orange)} .pastille.st-t{background:var(--vert)}
+.ligne .txt{flex:1;min-width:0}
+.ligne .txt b{display:block;font-size:18px;font-weight:800}
+.ligne .txt small{display:block;font-size:13.5px;color:var(--tx2);overflow:hidden;
+ text-overflow:ellipsis;white-space:nowrap}
+.ligne .mini{width:50px;height:50px;border-radius:10px;background:var(--bg3);border:2px solid var(--bd2);
+ display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.ligne .mini svg{width:22px;height:22px;stroke:var(--or);fill:none;stroke-width:2;
+ stroke-linecap:round;stroke-linejoin:round}
+.vide{text-align:center;color:var(--tx3);padding:44px 20px;font-size:15px;line-height:1.55}
+.rub{font-size:12.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--or);
+ margin:24px 0 11px;padding-bottom:6px;border-bottom:1px solid var(--bd)}
+.rub:first-child{margin-top:0}
+.info{font-size:14.5px;color:var(--tx2);line-height:1.5;margin:0 0 14px}
+.kv{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--bd);font-size:15px}
+.kv b{color:var(--tx2);font-weight:700}
+.kv span{text-align:right;font-variant-numeric:tabular-nums}
+.gal{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.gal .ph{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;border:2px solid var(--bd2);background:#000}
+.gal .ph img{width:100%;height:100%;object-fit:cover;display:block}
+.gal .ph button{position:absolute;top:2px;right:2px;width:32px;height:32px;border-radius:8px;
+ background:rgba(10,20,34,.88);color:#FF8085;font-size:18px;font-weight:800}
+#visio{position:fixed;inset:0;z-index:80;background:#000;display:none;align-items:center;justify-content:center}
+#visio.on{display:flex}
+#visio img{max-width:100%;max-height:100%;object-fit:contain}
+#visio button{position:absolute;top:calc(12px + var(--sat));right:12px;width:52px;height:52px;border-radius:12px;
+ background:rgba(15,29,49,.92);border:2px solid var(--bd2);font-size:24px;font-weight:800;color:#fff}
+#toast{position:fixed;left:12px;right:12px;bottom:calc(96px + var(--sab));z-index:200;display:flex;
+ justify-content:center;pointer-events:none}
+#toast div{background:var(--bg3);border:2px solid var(--or);color:var(--tx);padding:13px 18px;
+ border-radius:12px;font-size:16px;font-weight:700;box-shadow:0 6px 20px rgba(0,0,0,.6);
+ max-width:100%;text-align:center;animation:up .2s ease}
+.sw{display:flex;align-items:center;gap:12px;padding:15px 0;border-bottom:1px solid var(--bd)}
+.sw .lb{flex:1;font-size:16px}
+.sw .lb small{display:block;color:var(--tx3);font-size:13px;margin-top:3px;line-height:1.35}
+.sw i{width:60px;height:34px;border-radius:99px;background:var(--bg3);border:2px solid var(--bd2);
+ position:relative;flex:0 0 auto}
+.sw i:after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;
+ background:var(--tx3);transition:transform .15s,background .15s}
+.sw.on i{background:rgba(245,179,1,.25);border-color:var(--or)}
+.sw.on i:after{transform:translateX(26px);background:var(--or)}
+.diag{display:flex;align-items:flex-start;gap:10px;padding:11px 0;border-bottom:1px solid var(--bd);font-size:15px}
+.diag em{font-style:normal;font-size:19px;line-height:1.1;width:24px;flex:0 0 auto;text-align:center}
+.diag .d1{flex:1}
+.diag .d1 small{display:block;color:var(--tx3);font-size:13px;margin-top:2px;line-height:1.35}
+.ok{color:var(--vert)} .ko{color:var(--rouge)} .wa{color:var(--orange)}
+.pied{text-align:center;color:var(--tx3);font-size:12.5px;line-height:1.7;padding:28px 0 12px}
+.pied b{color:var(--tx2)}
+.etape{background:var(--bg2);border:2px solid var(--bd);border-left:5px solid var(--or);
+ border-radius:var(--r);padding:14px;margin-bottom:12px}
+.etape h3{font-size:16px;margin-bottom:6px;color:var(--or)}
+.etape.fait{border-left-color:var(--vert)}
+.etape.fait h3{color:var(--vert)}
+</style>
+</head>
+<body>
+
+<!-- ================= Ouverture SC : cache anti-flash ================= -->
+<div id="sc-boot">
+ <svg viewBox="0 0 600 400" preserveAspectRatio="xMidYMid slice">
+  <path class="trbg" d="M0,80 H180 L220,120 H283"/><path class="trbg" d="M0,320 H150 L200,268 H283"/>
+  <path class="trbg" d="M600,64 H430 L392,102 V148 H317"/><path class="trbg" d="M600,336 H460 L422,298 H317"/>
+  <path class="trbg" d="M84,0 V88 L124,128 V166"/><path class="trbg" d="M516,400 V312 L476,272 V234"/>
+  <path class="tr" pathLength="1" d="M0,80 H180 L220,120 H283"/>
+  <path class="tr" pathLength="1" d="M0,320 H150 L200,268 H283" style="animation-delay:.35s"/>
+  <path class="tr" pathLength="1" d="M600,64 H430 L392,102 V148 H317" style="animation-delay:.18s"/>
+  <path class="tr" pathLength="1" d="M600,336 H460 L422,298 H317" style="animation-delay:.5s"/>
+  <path class="tr" pathLength="1" d="M84,0 V88 L124,128 V166" style="animation-delay:.65s"/>
+  <path class="tr" pathLength="1" d="M516,400 V312 L476,272 V234" style="animation-delay:.8s"/>
+ </svg>
+ <img class="lg" id="boot-logo" alt="Sari Concept">
+ <div class="t1">SC Carto <b>v1.0</b></div>
+ <div class="t2">Chargement en cours<span id="boot-dots"></span></div>
+</div>
+
+<!-- ================= Application ================= -->
+<div id="app">
+ <header>
+  <span class="marque">SC <b>Carto</b></span>
+  <span class="badge-v">v1.0</span>
+  <span class="site" id="hd-site">—</span>
+ </header>
+
+ <main>
+  <!-- ---------- Vue PLAN ---------- -->
+  <section class="vue on" id="v-plan">
+   <div id="plan">
+    <div id="world">
+     <img id="fond" alt="">
+     <div id="gps-acc" class="hide"></div>
+     <div id="gps-dot" class="hide"></div>
+     <div id="marqueurs"></div>
+    </div>
+    <div id="plan-vide">
+     <svg viewBox="0 0 24 24"><path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3zM9 3v15M15 6v15"/></svg>
+     <div><b style="font-size:19px">Aucun fond de plan</b><br>
+     <span style="font-size:15px">Importez le plan de l'usine (PNG, JPG ou SVG).</span></div>
+     <button class="btn or" id="b-import-fond2">Importer un plan</button>
+    </div>
+    <div id="gps-etat" class="hide"></div>
+    <div id="hud">
+     <button id="b-lumiere" title="Mode lumière">☀</button>
+     <button id="b-cadrer" title="Voir tout le plan">
+      <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+     <button id="b-suivre" title="Centrer sur ma position" class="hide">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/>
+      <circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none"/></svg></button>
+    </div>
+    <button id="btn-add">+</button>
+    <div id="barre-pose" class="hide">
+     <p id="pose-txt">Faites glisser le repère à sa position, puis validez.</p>
+     <button class="btn sm" id="b-pose-annul">Annuler</button>
+     <button class="btn sm or" id="b-pose-ok">Valider</button>
+    </div>
+   </div>
+  </section>
+
+  <!-- ---------- Vue LISTE ---------- -->
+  <section class="vue" id="v-liste">
+   <div class="barre-outils">
+    <input type="search" id="q" placeholder="Rechercher un numéro…" autocomplete="off">
+    <select id="tri">
+     <option value="num">N°</option>
+     <option value="statut">Statut</option>
+     <option value="date">Date</option>
+    </select>
+   </div>
+   <div class="scroll" id="liste"></div>
+  </section>
+
+  <!-- ---------- Vue EXPORT ---------- -->
+  <section class="vue" id="v-export">
+   <div class="scroll">
+    <div class="rub">Exporter le relevé</div>
+    <p class="info">Le fichier est déposé dans les téléchargements du téléphone.
+     De là : messagerie, Drive, Dropbox — vous choisissez.</p>
+    <div class="carte">
+     <h3>Listing CSV</h3>
+     <p class="info">Numéro, statut, note, X/Y plan, latitude/longitude, date, photos.
+      S'ouvre dans Excel (séparateur point-virgule).</p>
+     <button class="btn plein or" id="b-exp-csv">Exporter le CSV</button>
+    </div>
+    <div class="carte">
+     <h3>Dossier complet ZIP</h3>
+     <p class="info">Le CSV + toutes les photos renommées par numéro (BD-001_1.jpg, BD-001_2.jpg…).
+      C'est ce qu'on envoie au client.</p>
+     <button class="btn plein or" id="b-exp-zip">Exporter le ZIP</button>
+    </div>
+    <div class="carte">
+     <h3>Sauvegarde JSON</h3>
+     <p class="info">Sauvegarde du projet, restaurable sur un autre téléphone.
+      C'est aussi le fichier attendu par <b>points2dxf.py</b> pour regénérer le plan AutoCAD.</p>
+     <button class="btn plein or" id="b-exp-json">Sauvegarde complète (avec photos)</button>
+     <div style="height:10px"></div>
+     <button class="btn plein" id="b-exp-json-leger">Sauvegarde légère (sans photos)</button>
+    </div>
+    <div class="rub">Restaurer</div>
+    <p class="info">Importe un fichier JSON de sauvegarde. Le projet est ajouté à côté des projets
+     existants, rien n'est écrasé.</p>
+    <button class="btn plein" id="b-restaure">
+     <svg viewBox="0 0 24 24"><path d="M12 20V8M8 12l4-4 4 4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+     Restaurer une sauvegarde</button>
+    <div class="pied">Aucun envoi réseau : tout se fait dans le téléphone.</div>
+   </div>
+  </section>
+
+  <!-- ---------- Vue RÉGLAGES ---------- -->
+  <section class="vue" id="v-reglages">
+   <div class="scroll">
+    <div class="rub">Projet en cours</div>
+    <div class="carte">
+     <h3 id="rg-nom">—</h3>
+     <div class="kv"><b>Boîtes recensées</b><span id="rg-nb">0</span></div>
+     <div class="kv"><b>Fond de plan</b><span id="rg-fond">aucun</span></div>
+     <div class="kv"><b>Calage GPS</b><span id="rg-calage">non calé</span></div>
+     <div class="kv" style="border:0"><b>Créé le</b><span id="rg-cree">—</span></div>
+    </div>
+    <label class="champ"><span>Nom du site</span>
+     <input type="text" id="rg-i-nom" placeholder="PALM Mortagne"></label>
+    <label class="champ"><span>Préfixe des numéros</span>
+     <input type="text" id="rg-i-prefixe" placeholder="BD-" autocapitalize="characters"></label>
+    <button class="btn plein or" id="b-rg-save">Enregistrer les réglages</button>
+
+    <div class="rub">Fond de plan</div>
+    <p class="info">Image PNG/JPG ou fichier SVG produit par <b>dxf2fond.py</b>. Le fichier reste dans le téléphone.</p>
+    <button class="btn plein" id="b-import-fond">
+     <svg viewBox="0 0 24 24"><path d="M12 16V4M8 8l4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+     Importer un fond de plan</button>
+    <div style="height:10px"></div>
+    <button class="btn plein rouge" id="b-suppr-fond">Retirer le fond de plan</button>
+
+    <div class="rub">Calage GPS</div>
+    <p class="info" id="cal-info">Deux points suffisent : placez-vous à un coin repérable du bâtiment,
+     pointez-le sur le plan, capturez le GPS ; recommencez sur un second point <b>le plus éloigné possible</b>.
+     Tant que le calage n'est pas fait, l'application fonctionne normalement, sans GPS.</p>
+    <button class="btn plein or" id="b-calage">Caler le GPS</button>
+    <div style="height:10px"></div>
+    <button class="btn plein rouge hide" id="b-decaler">Effacer le calage</button>
+
+    <div class="rub">Projets</div>
+    <button class="btn plein" id="b-projets">
+     <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+     Changer / créer un projet</button>
+
+    <div class="rub">Application</div>
+    <div class="sw" id="sw-splash"><div class="lb">Ouverture animée
+      <small>Séquence de mise sous tension au démarrage.</small></div><i></i></div>
+    <div class="sw" id="sw-gps"><div class="lb">Position en direct
+      <small>Suivi GPS continu (consomme de la batterie).</small></div><i></i></div>
+    <div style="height:14px"></div>
+    <button class="btn plein" id="b-diag">
+     <svg viewBox="0 0 24 24"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg> Diagnostic</button>
+    <div style="height:10px"></div>
+    <button class="btn plein" id="b-aide">Aide / mode d'emploi</button>
+
+    <div class="rub">Zone rouge</div>
+    <button class="btn plein rouge" id="b-suppr-projet">Supprimer ce projet</button>
+
+    <div class="pied">
+     <b>SC Carto v1.0</b><br>
+     Développé par Sari-Concept — Agence de l'Orne<br>
+     Toutes les données restent dans ce téléphone.
+    </div>
+   </div>
+  </section>
+ </main>
+
+ <nav>
+  <button data-vue="v-plan" class="on">
+   <svg viewBox="0 0 24 24"><path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3zM9 3v15M15 6v15"/></svg>Plan</button>
+  <button data-vue="v-liste">
+   <svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>Boîtes</button>
+  <button data-vue="v-export">
+   <svg viewBox="0 0 24 24"><path d="M12 3v12M8 11l4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>Exporter</button>
+  <button data-vue="v-reglages">
+   <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 7 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 3 15a2 2 0 0 1-2-2 2 2 0 0 1 2-2 1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 9 4.6 2 2 0 0 1 11 3a2 2 0 0 1 2 2v.1A1.6 1.6 0 0 0 15 6.6a1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V11a2 2 0 0 1 0 4z"/></svg>Réglages</button>
+ </nav>
+</div>
+
+<!-- ================= Feuilles ================= -->
+<div class="sheet" id="sh-fiche"><div>
+ <div class="sh-top"><h2 id="fi-titre">Boîte</h2><button class="x" data-close="sh-fiche">✕</button></div>
+ <div class="sh-body">
+  <label class="champ"><span>Numéro</span><input type="text" id="fi-num"></label>
+  <label class="champ"><span>Statut</span></label>
+  <div class="segs" id="fi-statut" style="margin:-10px 0 18px">
+   <button data-v="a_identifier">À identifier</button>
+   <button data-v="identifiee">Identifiée</button>
+   <button data-v="traitee">Traitée</button>
+  </div>
+  <label class="champ"><span>Note</span><textarea id="fi-note"
+   placeholder="Repère, alimentation, remarque…"></textarea></label>
+  <div class="rub">Photos</div>
+  <div style="display:flex;gap:10px;margin-bottom:12px">
+   <button class="btn sm" id="fi-photo" style="flex:1">
+    <svg viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg>
+    Prendre</button>
+   <button class="btn sm" id="fi-galerie" style="flex:1">
+    <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 16 5-5 4 4 3-3 6 6"/></svg>
+    Choisir</button>
+  </div>
+  <div class="gal" id="fi-gal"></div>
+  <div class="rub">Repères</div>
+  <div class="kv"><b>Position plan</b><span id="fi-xy">—</span></div>
+  <div class="kv"><b>Coordonnées GPS</b><span id="fi-ll">—</span></div>
+  <div class="kv"><b>Créée le</b><span id="fi-date">—</span></div>
+  <div class="kv" style="border:0"><b>Couche</b><span>boites_derivation</span></div>
+  <div style="height:18px"></div>
+  <button class="btn plein rouge" id="fi-suppr">Supprimer cette boîte</button>
+ </div>
+ <div class="sh-bas">
+  <button class="btn or plein" id="fi-ok">Enregistrer</button>
+ </div>
+</div></div>
+
+<div class="sheet" id="sh-projets"><div>
+ <div class="sh-top"><h2>Projets</h2><button class="x" data-close="sh-projets">✕</button></div>
+ <div class="sh-body" id="pr-liste"></div>
+ <div class="sh-bas"><button class="btn or plein" id="b-nouveau-projet">+ Nouveau projet</button></div>
+</div></div>
+
+<div class="sheet" id="sh-calage"><div>
+ <div class="sh-top"><h2>Calage GPS</h2><button class="x" data-close="sh-calage">✕</button></div>
+ <div class="sh-body" id="cal-body"></div>
+ <div class="sh-bas" id="cal-bas"></div>
+</div></div>
+
+<div class="sheet" id="sh-diag"><div>
+ <div class="sh-top"><h2>Diagnostic</h2><button class="x" data-close="sh-diag">✕</button></div>
+ <div class="sh-body" id="diag-body"></div>
+ <div class="sh-bas"><button class="btn plein" id="b-diag-relancer">Relancer les tests</button></div>
+</div></div>
+
+<div class="sheet" id="sh-aide"><div>
+ <div class="sh-top"><h2>Mode d'emploi</h2><button class="x" data-close="sh-aide">✕</button></div>
+ <div class="sh-body">
+  <div class="etape"><h3>1. Le projet</h3>Un projet = un site. Donnez-lui le nom du client
+   (« PALM Mortagne »). Le préfixe des numéros est réglable : BD- donne BD-001, BD-002…</div>
+  <div class="etape"><h3>2. Le fond de plan</h3>Importez le plan depuis le téléphone (PNG, JPG ou SVG).
+   Un doigt pour déplacer, deux doigts pour zoomer.</div>
+  <div class="etape"><h3>3. Le calage GPS (facultatif)</h3>Il sert uniquement à afficher votre position
+   et à pré-positionner les repères. Placez-vous <b>dehors</b> à un coin du bâtiment, pointez-le sur le
+   plan, capturez ; recommencez à l'angle opposé. Plus les deux points sont éloignés, plus le calage
+   est juste.</div>
+  <div class="etape"><h3>4. Poser une boîte</h3>Bouton <b>+</b>. Le repère apparaît sur votre position
+   GPS si elle est connue, sinon au centre de l'écran. Faites-le glisser au bon endroit, validez,
+   remplissez la fiche : statut, photos, note.</div>
+  <div class="etape"><h3>5. Les statuts</h3>
+   <span style="color:#E5484D">●</span> à identifier &nbsp;
+   <span style="color:#FF9C2E">●</span> identifiée &nbsp;
+   <span style="color:#25C05A">●</span> traitée</div>
+  <div class="etape"><h3>6. Exporter</h3>CSV pour le tableur, ZIP avec toutes les photos,
+   JSON pour la sauvegarde et pour regénérer le DXF avec <b>points2dxf.py</b>.</div>
+  <div class="etape"><h3>7. En plein soleil</h3>Le bouton <b>☀</b> en haut à droite du plan passe le
+   fond en blanc : le plan redevient lisible dehors.</div>
+  <p class="info" style="margin-top:18px">Aucune donnée ne sort du téléphone. Pensez à exporter
+   une sauvegarde JSON à la fin de chaque journée.</p>
+ </div>
+ <div class="sh-bas"><button class="btn plein" data-close="sh-aide">Fermer</button></div>
+</div></div>
+
+<div id="visio"><img id="visio-img" alt=""><button id="visio-x">✕</button></div>
+<div id="toast"></div>
+<input type="file" id="f-fond" accept="image/png,image/jpeg,image/svg+xml,.svg,.png,.jpg,.jpeg" class="hide">
+<input type="file" id="f-photo" accept="image/*" capture="environment" class="hide">
+<input type="file" id="f-galerie" accept="image/*" multiple class="hide">
+<input type="file" id="f-restaure" accept="application/json,.json" class="hide">
+
+<script>
+/* =========================================================================
+   SC Carto v1.0 — Sari-Concept, agence de l'Orne
+   PWA autonome : aucune dépendance réseau, aucune donnée ne quitte l'appareil.
+   ========================================================================= */
+(function(){
+"use strict";
+var VERSION="1.0";
+var LOGO="data:image/png;base64,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";
+
+/* ---------------------------------------------------------------- outils */
+function $(id){return document.getElementById(id);}
+function qsa(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s));}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];});}
+function uid(){
+  try{ if(crypto&&crypto.randomUUID) return crypto.randomUUID(); }catch(e){}
+  return "id"+Date.now().toString(36)+Math.random().toString(36).slice(2,10);
+}
+function pad3(n){n=String(n);while(n.length<3)n="0"+n;return n;}
+function clamp(v,a,b){return v<a?a:(v>b?b:v);}
+function nowISO(){return new Date().toISOString();}
+function fmtDate(iso){
+  if(!iso)return "—";
+  var d=new Date(iso); if(isNaN(d))return "—";
+  var p=function(n){return (n<10?"0":"")+n;};
+  return p(d.getDate())+"/"+p(d.getMonth()+1)+"/"+d.getFullYear()+" "+p(d.getHours())+":"+p(d.getMinutes());
+}
+function fmtFichier(iso){
+  var d=iso?new Date(iso):new Date();
+  var p=function(n){return (n<10?"0":"")+n;};
+  return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+"-"+p(d.getHours())+p(d.getMinutes());
+}
+function assainir(s){return String(s||"projet").normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+  .replace(/[^A-Za-z0-9 _-]/g,"").trim().replace(/\s+/g,"_")||"projet";}
+var toastT=null;
+function toast(msg,ms){
+  var z=$("toast"); z.innerHTML="<div>"+esc(msg)+"</div>";
+  clearTimeout(toastT); toastT=setTimeout(function(){z.innerHTML="";},ms||2600);
+}
+var ST={a_identifier:{c:"st-a",n:"À identifier"},identifiee:{c:"st-i",n:"Identifiée"},
+        traitee:{c:"st-t",n:"Traitée"}};
+function stCls(s){return (ST[s]||ST.a_identifier).c;}
+function stNom(s){return (ST[s]||ST.a_identifier).n;}
+
+/* --------------------------------------------------------------- base IDB */
+var DB=null;
+function dbOpen(){
+  return new Promise(function(res,rej){
+    if(!window.indexedDB){rej(new Error("IndexedDB indisponible"));return;}
+    var r=indexedDB.open("sc_carto",1);
+    r.onupgradeneeded=function(e){
+      var d=e.target.result;
+      if(!d.objectStoreNames.contains("projets")) d.createObjectStore("projets",{keyPath:"id"});
+      if(!d.objectStoreNames.contains("points")){
+        var s=d.createObjectStore("points",{keyPath:"id"}); s.createIndex("projetId","projetId");}
+      if(!d.objectStoreNames.contains("photos")){
+        var p=d.createObjectStore("photos",{keyPath:"id"});
+        p.createIndex("pointId","pointId"); p.createIndex("projetId","projetId");}
+      if(!d.objectStoreNames.contains("reglages")) d.createObjectStore("reglages",{keyPath:"cle"});
+    };
+    r.onsuccess=function(){DB=r.result;res(DB);};
+    r.onerror=function(){rej(r.error||new Error("Ouverture IndexedDB refusée"));};
+    r.onblocked=function(){rej(new Error("Base bloquée par un autre onglet"));};
+  });
+}
+function dbOp(store,mode,fn){
+  return new Promise(function(res,rej){
+    var t=DB.transaction(store,mode), s=t.objectStore(store), rq;
+    try{ rq=fn(s); }catch(e){ rej(e); return; }
+    t.onerror=function(){rej(t.error);};
+    t.onabort=function(){rej(t.error||new Error("Transaction annulée"));};
+    t.oncomplete=function(){res(rq?rq.result:undefined);};
+  });
+}
+function dbPut(st,v){return dbOp(st,"readwrite",function(s){return s.put(v);});}
+function dbGet(st,k){return dbOp(st,"readonly",function(s){return s.get(k);});}
+function dbDel(st,k){return dbOp(st,"readwrite",function(s){return s["delete"](k);});}
+function dbAll(st){return dbOp(st,"readonly",function(s){return s.getAll();});}
+function dbPar(st,idx,v){return dbOp(st,"readonly",function(s){return s.index(idx).getAll(v);});}
+function dbDelPar(st,idx,v){
+  return dbOp(st,"readwrite",function(s){
+    var rq=s.index(idx).openCursor(IDBKeyRange.only(v));
+    rq.onsuccess=function(){var c=rq.result; if(c){c["delete"](); c["continue"]();}};
+    return null;
+  });
+}
+
+/* ------------------------------------------------------------------- état */
+var S={projet:null, points:[], nbPhotos:{}, ui:{cle:"ui",splash:true,gpsSuivi:true,dernier:null}};
+
+/* ============================ VUE PLAN : rendu ============================ */
+var planEl,world,fondImg,mkBox;
+var view={x:0,y:0,z:1}, FW=0, FH=0, fondURL=null;
+var ZMIN=0.02, ZMAX=24;
+
+function applyView(){
+  world.style.transform="translate("+view.x+"px,"+view.y+"px) scale("+view.z+")";
+  world.style.setProperty("--inv",String(1/view.z));
+  majCercleGPS();
+}
+function ecranVersPlan(sx,sy){
+  var r=planEl.getBoundingClientRect();
+  return {x:(sx-r.left-view.x)/view.z, y:(sy-r.top-view.y)/view.z};
+}
+function cadrer(){
+  if(!FW||!FH)return;
+  var r=planEl.getBoundingClientRect();
+  if(!r.width||!r.height)return;
+  var z=Math.min(r.width/FW,r.height/FH)*0.94;
+  view.z=clamp(z,ZMIN,ZMAX);
+  view.x=(r.width-FW*view.z)/2; view.y=(r.height-FH*view.z)/2;
+  applyView();
+}
+function centrerSur(x,y,zoom){
+  var r=planEl.getBoundingClientRect();
+  if(zoom) view.z=clamp(zoom,ZMIN,ZMAX);
+  view.x=r.width/2-x*view.z; view.y=r.height/2-y*view.z;
+  applyView();
+}
+function chargerFond(){
+  if(fondURL){try{URL.revokeObjectURL(fondURL);}catch(e){} fondURL=null;}
+  var f=S.projet&&S.projet.fond;
+  if(!f||!f.blob){
+    fondImg.removeAttribute("src"); FW=0; FH=0;
+    $("plan-vide").classList.remove("hide"); return;
+  }
+  $("plan-vide").classList.add("hide");
+  FW=f.largeur||1000; FH=f.hauteur||1000;
+  fondURL=URL.createObjectURL(f.blob);
+  fondImg.style.width=FW+"px"; fondImg.style.height=FH+"px";
+  fondImg.src=fondURL;
+  setTimeout(cadrer,30);
+}
+function lireFond(file){
+  return new Promise(function(res,rej){
+    var estSvg=/svg/i.test(file.type)||/\.svg$/i.test(file.name);
+    if(estSvg){
+      var fr=new FileReader();
+      fr.onload=function(){
+        var t=String(fr.result), w=0, h=0;
+        var m=/viewBox\s*=\s*["']([-\d.eE\s,+]+)["']/.exec(t);
+        if(m){var p=m[1].trim().split(/[\s,]+/).map(Number); if(p.length===4&&p[2]>0&&p[3]>0){w=p[2];h=p[3];}}
+        if(!w){
+          var mw=/<svg[^>]*?\bwidth\s*=\s*["']([\d.]+)/.exec(t);
+          var mh=/<svg[^>]*?\bheight\s*=\s*["']([\d.]+)/.exec(t);
+          if(mw&&mh){w=parseFloat(mw[1]);h=parseFloat(mh[1]);}
+        }
+        if(!(w>0&&h>0)){rej(new Error("SVG sans viewBox ni dimensions lisibles"));return;}
+        res({blob:new Blob([t],{type:"image/svg+xml"}),largeur:Math.round(w),hauteur:Math.round(h),
+             nom:file.name,type:"image/svg+xml"});
+      };
+      fr.onerror=function(){rej(fr.error||new Error("Lecture impossible"));};
+      fr.readAsText(file);
+    }else{
+      var u=URL.createObjectURL(file), im=new Image();
+      im.onload=function(){
+        res({blob:file,largeur:im.naturalWidth,hauteur:im.naturalHeight,nom:file.name,type:file.type});
+        URL.revokeObjectURL(u);
+      };
+      im.onerror=function(){URL.revokeObjectURL(u);rej(new Error("Image illisible"));};
+      im.src=u;
+    }
+  });
+}
+
+/* ---- marqueurs ---- */
+function dessinerMarqueurs(){
+  var h="";
+  for(var i=0;i<S.points.length;i++){
+    var p=S.points[i];
+    h+='<div class="mk '+stCls(p.statut)+'" data-id="'+esc(p.id)+'" style="left:'+p.x+'px;top:'+p.y+'px">'+
+       '<i></i><b>'+esc(p.numero)+'</b></div>';
+  }
+  mkBox.innerHTML=h;
+}
+function surlignerMarqueur(id){
+  qsa(".mk.sel",mkBox).forEach(function(e){e.classList.remove("sel");});
+  var m=mkBox.querySelector('.mk[data-id="'+id+'"]');
+  if(m)m.classList.add("sel");
+}
+
+/* ---- gestes : un doigt = déplacement, deux doigts = zoom ---- */
+var ptrs=new Map(), gest=null, tap=null;
+function installerGestes(){
+  planEl.addEventListener("pointerdown",function(e){
+    if(e.target.closest&&e.target.closest(".mk.fantome"))return;
+    try{planEl.setPointerCapture(e.pointerId);}catch(err){}
+    ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    tap=(ptrs.size===1)?{x:e.clientX,y:e.clientY,t:Date.now(),id:e.pointerId,cible:e.target}:null;
+    gest=null;
+  });
+  planEl.addEventListener("pointermove",function(e){
+    if(!ptrs.has(e.pointerId))return;
+    var prev=ptrs.get(e.pointerId);
+    ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    var a=[]; ptrs.forEach(function(v){a.push(v);});
+    var r=planEl.getBoundingClientRect();
+    if(a.length>=2){
+      var d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);
+      var cx=(a[0].x+a[1].x)/2-r.left, cy=(a[0].y+a[1].y)/2-r.top;
+      if(gest&&gest.d>0){
+        var nz=clamp(view.z*(d/gest.d),ZMIN,ZMAX);
+        view.x=cx-((gest.cx-view.x)/view.z)*nz;
+        view.y=cy-((gest.cy-view.y)/view.z)*nz;
+        view.z=nz; applyView();
+      }
+      gest={d:d,cx:cx,cy:cy}; tap=null;
+    }else{
+      view.x+=e.clientX-prev.x; view.y+=e.clientY-prev.y; applyView();
+      if(tap&&Math.hypot(e.clientX-tap.x,e.clientY-tap.y)>12)tap=null;
+    }
+  });
+  function relacher(e){
+    ptrs["delete"](e.pointerId);
+    if(ptrs.size<2)gest=null;
+    if(tap&&tap.id===e.pointerId&&Date.now()-tap.t<700){
+      var mk=tap.cible&&tap.cible.closest?tap.cible.closest(".mk"):null;
+      if(mk&&mk.dataset.id&&!mk.classList.contains("fantome")) ouvrirFiche(mk.dataset.id);
+    }
+    tap=null;
+  }
+  planEl.addEventListener("pointerup",relacher);
+  planEl.addEventListener("pointercancel",function(e){ptrs["delete"](e.pointerId);gest=null;tap=null;});
+  planEl.addEventListener("wheel",function(e){
+    e.preventDefault();
+    var r=planEl.getBoundingClientRect(), cx=e.clientX-r.left, cy=e.clientY-r.top;
+    var nz=clamp(view.z*(e.deltaY<0?1.14:1/1.14),ZMIN,ZMAX);
+    view.x=cx-((cx-view.x)/view.z)*nz; view.y=cy-((cy-view.y)/view.z)*nz;
+    view.z=nz; applyView();
+  },{passive:false});
+  document.addEventListener("gesturestart",function(e){e.preventDefault();});
+  window.addEventListener("resize",function(){ majCercleGPS(); });
+}
+
+/* ---- mode « pose » : repère fantôme que l'on fait glisser ---- */
+var pose=null;
+function demarrerPose(opts){
+  if(!FW){toast("Importez d'abord un fond de plan");return;}
+  annulerPose();
+  var r=planEl.getBoundingClientRect();
+  var d=opts.depart||ecranVersPlan(r.left+r.width/2,r.top+r.height/2);
+  pose={x:clamp(d.x,0,FW),y:clamp(d.y,0,FH),onOk:opts.onOk,onAnnul:opts.onAnnul};
+  var g=document.createElement("div");
+  g.className="mk fantome"; g.id="fantome"; g.innerHTML="<i></i><b>"+esc(opts.etiquette||"nouveau")+"</b>";
+  mkBox.appendChild(g);
+  pose.el=g; placerFantome();
+  var dr=null;
+  g.addEventListener("pointerdown",function(e){
+    e.stopPropagation(); e.preventDefault();
+    try{g.setPointerCapture(e.pointerId);}catch(err){}
+    var p=ecranVersPlan(e.clientX,e.clientY);
+    dr={id:e.pointerId,dx:pose.x-p.x,dy:pose.y-p.y};
+  });
+  g.addEventListener("pointermove",function(e){
+    if(!dr||dr.id!==e.pointerId)return;
+    e.stopPropagation();
+    var p=ecranVersPlan(e.clientX,e.clientY);
+    pose.x=clamp(p.x+dr.dx,0,FW); pose.y=clamp(p.y+dr.dy,0,FH);
+    placerFantome();
+  });
+  function fin(e){ if(dr&&dr.id===e.pointerId){e.stopPropagation();dr=null;} }
+  g.addEventListener("pointerup",fin); g.addEventListener("pointercancel",fin);
+  $("pose-txt").textContent=opts.texte||"Faites glisser le repère à sa position, puis validez.";
+  $("barre-pose").classList.remove("hide");
+  $("btn-add").classList.add("hide");
+  var vis=planVersEcran(pose.x,pose.y);
+  if(vis.x<40||vis.y<40||vis.x>r.width-40||vis.y>r.height-90) centrerSur(pose.x,pose.y);
+}
+function placerFantome(){
+  if(!pose||!pose.el)return;
+  pose.el.style.left=pose.x+"px"; pose.el.style.top=pose.y+"px";
+}
+function planVersEcran(x,y){return {x:x*view.z+view.x, y:y*view.z+view.y};}
+function annulerPose(){
+  if(pose&&pose.el&&pose.el.parentNode)pose.el.parentNode.removeChild(pose.el);
+  pose=null;
+  $("barre-pose").classList.add("hide");
+  $("btn-add").classList.remove("hide");
+}
+
+/* ============================== GPS ============================== */
+var R_LAT=110540, R_LON=111320;
+function enu(lat,lon,lat0,lon0){
+  return {e:(lon-lon0)*R_LON*Math.cos(lat0*Math.PI/180), n:(lat-lat0)*R_LAT};
+}
+function enuInv(e,n,lat0,lon0){
+  return {lat:lat0+n/R_LAT, lon:lon0+e/(R_LON*Math.cos(lat0*Math.PI/180))};
+}
+function calculerCalage(p1,p2){
+  var lat0=p1.lat, lon0=p1.lon;
+  var A=enu(p1.lat,p1.lon,lat0,lon0), B=enu(p2.lat,p2.lon,lat0,lon0);
+  var u1=p1.x, v1=-p1.y, u2=p2.x, v2=-p2.y;
+  var du=u2-u1, dv=v2-v1, dE=B.e-A.e, dN=B.n-A.n;
+  var q=du*du+dv*dv;
+  if(q<1e-9)return null;
+  var a=(du*dE+dv*dN)/q, b=(du*dN-dv*dE)/q;
+  if(!(a*a+b*b>1e-12))return null;
+  return {actif:true, origine:{lat:lat0,lon:lon0}, a:a, b:b,
+          tx:A.e-(a*u1-b*v1), ty:A.n-(b*u1+a*v1),
+          echelle_m_par_px:Math.sqrt(a*a+b*b),
+          distance_m:Math.hypot(dE,dN), distance_px:Math.sqrt(q),
+          points:[p1,p2], date:nowISO()};
+}
+function planVersLatLon(x,y,c){
+  var u=x, v=-y;
+  return enuInv(c.a*u-c.b*v+c.tx, c.b*u+c.a*v+c.ty, c.origine.lat, c.origine.lon);
+}
+function latLonVersPlan(lat,lon,c){
+  var p=enu(lat,lon,c.origine.lat,c.origine.lon);
+  var de=p.e-c.tx, dn=p.n-c.ty, q=c.a*c.a+c.b*c.b;
+  return {x:(c.a*de+c.b*dn)/q, y:-((c.a*dn-c.b*de)/q)};
+}
+function cale(){var c=S.projet&&S.projet.calage; return (c&&c.actif)?c:null;}
+
+var geo={watch:null,last:null,err:null};
+function suivreGPS(){
+  if(!navigator.geolocation){majGPS();return;}
+  if(geo.watch!==null)return;
+  geo.watch=navigator.geolocation.watchPosition(function(p){
+    geo.err=null;
+    geo.last={lat:p.coords.latitude,lon:p.coords.longitude,
+              acc:p.coords.accuracy||99,t:Date.now()};
+    majGPS();
+  },function(e){ geo.err=e; majGPS(); },
+  {enableHighAccuracy:true,maximumAge:3000,timeout:20000});
+}
+function stopGPS(){
+  if(geo.watch!==null){try{navigator.geolocation.clearWatch(geo.watch);}catch(e){}geo.watch=null;}
+  geo.last=null; majGPS();
+}
+function positionFraiche(){
+  return geo.last && (Date.now()-geo.last.t)<25000 ? geo.last : null;
+}
+function majGPS(){
+  var chip=$("gps-etat"), dot=$("gps-dot"), acc=$("gps-acc"), suivi=$("b-suivre");
+  var c=cale();
+  if(!S.ui.gpsSuivi||!navigator.geolocation){
+    chip.classList.add("hide"); dot.classList.add("hide"); acc.classList.add("hide");
+    suivi.classList.add("hide"); return;
+  }
+  chip.classList.remove("hide");
+  if(!c){
+    chip.className=""; chip.textContent="GPS non calé";
+    dot.classList.add("hide"); acc.classList.add("hide"); suivi.classList.add("hide");
+    return;
+  }
+  var p=positionFraiche();
+  if(!p){
+    chip.className="faible";
+    chip.textContent=geo.err?("GPS "+(geo.err.code===1?"refusé":"indisponible")):"Recherche GPS…";
+    dot.classList.add("hide"); acc.classList.add("hide"); suivi.classList.add("hide");
+    return;
+  }
+  var faible=p.acc>25;
+  chip.className=faible?"faible":"ok";
+  chip.textContent=(faible?"Signal faible ± ":"GPS ± ")+Math.round(p.acc)+" m";
+  var xy=latLonVersPlan(p.lat,p.lon,c);
+  dot.classList.remove("hide"); acc.classList.remove("hide"); suivi.classList.remove("hide");
+  dot.classList.toggle("faible",faible); acc.classList.toggle("faible",faible);
+  dot.style.left=xy.x+"px"; dot.style.top=xy.y+"px";
+  geo.xy=xy; majCercleGPS();
+}
+function majCercleGPS(){
+  var c=cale(), p=positionFraiche(), acc=$("gps-acc");
+  if(!c||!p||!geo.xy||acc.classList.contains("hide"))return;
+  var rpx=(p.acc/(c.echelle_m_par_px||1));
+  rpx=clamp(rpx,3,Math.max(FW,FH));
+  acc.style.width=(rpx*2)+"px"; acc.style.height=(rpx*2)+"px";
+  acc.style.left=(geo.xy.x-rpx)+"px"; acc.style.top=(geo.xy.y-rpx)+"px";
+}
+/* moyennage sur N secondes */
+function capturerGPS(sec,onTick){
+  return new Promise(function(res,rej){
+    if(!navigator.geolocation){rej(new Error("Géolocalisation indisponible sur cet appareil"));return;}
+    var ech=[], t0=Date.now(), w=null, iv=null, fini=false;
+    function stop(){ fini=true; clearInterval(iv);
+      if(w!==null){try{navigator.geolocation.clearWatch(w);}catch(e){}} }
+    w=navigator.geolocation.watchPosition(function(p){
+      ech.push({lat:p.coords.latitude,lon:p.coords.longitude,acc:Math.max(p.coords.accuracy||30,1)});
+    },function(e){
+      if(e.code===1){stop();rej(new Error("Accès à la position refusé. Autorisez la géolocalisation."));}
+    },{enableHighAccuracy:true,maximumAge:0,timeout:sec*1000+10000});
+    iv=setInterval(function(){
+      if(fini)return;
+      if(onTick)onTick(ech.length,Math.max(0,sec-(Date.now()-t0)/1000));
+    },200);
+    setTimeout(function(){
+      if(fini)return; stop();
+      if(!ech.length){rej(new Error("Aucun point GPS reçu. Sortez du bâtiment et réessayez."));return;}
+      var sw=0,sla=0,slo=0,sa=0;
+      ech.forEach(function(e){var pd=1/(e.acc*e.acc);sw+=pd;sla+=e.lat*pd;slo+=e.lon*pd;sa+=e.acc;});
+      res({lat:sla/sw,lon:slo/sw,acc:sa/ech.length,n:ech.length});
+    },sec*1000);
+  });
+}
+
+/* ========================= PROJETS ========================= */
+function projetVide(nom){
+  return {id:uid(),nom:nom||"Nouveau site",prefixe:"BD-",compteur:0,couche:"boites_derivation",
+          fond:null,calage:null,planClair:false,cree:nowISO(),modifie:nowISO()};
+}
+function sauverProjet(){
+  S.projet.modifie=nowISO();
+  return dbPut("projets",S.projet);
+}
+function chargerProjet(id){
+  return dbGet("projets",id).then(function(p){
+    if(!p)throw new Error("Projet introuvable");
+    S.projet=p;
+    S.ui.dernier=p.id; dbPut("reglages",S.ui);
+    return dbPar("points","projetId",p.id);
+  }).then(function(pts){
+    S.points=pts||[];
+    trierPointsInternes();
+    return compterPhotos();
+  }).then(function(){
+    $("hd-site").textContent=S.projet.nom;
+    $("plan").classList.toggle("clair",!!S.projet.planClair);
+    $("b-lumiere").classList.toggle("actif",!!S.projet.planClair);
+    chargerFond(); dessinerMarqueurs(); majGPS(); majReglages(); rendreListe();
+  });
+}
+function trierPointsInternes(){
+  S.points.sort(function(a,b){return String(a.numero).localeCompare(String(b.numero),"fr",{numeric:true});});
+}
+function compterPhotos(){
+  return dbPar("photos","projetId",S.projet.id).then(function(ph){
+    S.nbPhotos={}; S.photosParPoint={};
+    (ph||[]).forEach(function(p){
+      S.nbPhotos[p.pointId]=(S.nbPhotos[p.pointId]||0)+1;
+    });
+  });
+}
+
+/* ========================= FICHE BOÎTE ========================= */
+var fiche={id:null,statut:"a_identifier",urls:[]};
+function nouveauPoint(x,y){
+  var c=cale(), ll=c?planVersLatLon(x,y,c):null;
+  var n=(S.projet.compteur||0)+1;
+  var p={id:uid(),projetId:S.projet.id,couche:"boites_derivation",
+         numero:(S.projet.prefixe||"BD-")+pad3(n),
+         x:Math.round(x*10)/10, y:Math.round(y*10)/10,
+         lat:ll?ll.lat:null, lon:ll?ll.lon:null,
+         statut:"a_identifier", note:"", cree:nowISO(), modifie:nowISO()};
+  S.projet.compteur=n;
+  return dbPut("points",p).then(sauverProjet).then(function(){
+    S.points.push(p); trierPointsInternes(); dessinerMarqueurs(); rendreListe(); majReglages();
+    return p;
+  });
+}
+function ouvrirFiche(id){
+  var p=null;
+  for(var i=0;i<S.points.length;i++) if(S.points[i].id===id) p=S.points[i];
+  if(!p)return;
+  fiche.id=id; fiche.statut=p.statut;
+  $("fi-titre").textContent=p.numero;
+  $("fi-num").value=p.numero;
+  $("fi-note").value=p.note||"";
+  qsa("#fi-statut button").forEach(function(b){b.classList.toggle("on",b.dataset.v===p.statut);});
+  $("fi-xy").textContent=Math.round(p.x)+" ; "+Math.round(p.y)+" px";
+  $("fi-ll").textContent=(p.lat!=null)?(p.lat.toFixed(6)+" ; "+p.lon.toFixed(6)):"non calé";
+  $("fi-date").textContent=fmtDate(p.cree);
+  surlignerMarqueur(id);
+  rendreGalerie();
+  ouvrir("sh-fiche");
+}
+function rendreGalerie(){
+  fiche.urls.forEach(function(u){try{URL.revokeObjectURL(u);}catch(e){}});
+  fiche.urls=[];
+  var g=$("fi-gal"); g.innerHTML="";
+  dbPar("photos","pointId",fiche.id).then(function(ph){
+    ph=(ph||[]).sort(function(a,b){return (a.ordre||0)-(b.ordre||0);});
+    if(!ph.length){g.innerHTML='<div class="vide" style="grid-column:1/-1;padding:18px">Aucune photo</div>';return;}
+    var h="";
+    ph.forEach(function(p){
+      var u=URL.createObjectURL(p.blob); fiche.urls.push(u);
+      h+='<div class="ph"><img src="'+u+'" data-voir="'+u+'" alt=""><button data-suppr="'+esc(p.id)+'">✕</button></div>';
+    });
+    g.innerHTML=h;
+  });
+}
+function reduirePhoto(file,maxPx,q){
+  return new Promise(function(res,rej){
+    function fin(src,w,h){
+      if(!w||!h){rej(new Error("Photo illisible"));return;}
+      var s=Math.min(1,maxPx/Math.max(w,h));
+      var cv=document.createElement("canvas");
+      cv.width=Math.max(1,Math.round(w*s)); cv.height=Math.max(1,Math.round(h*s));
+      cv.getContext("2d").drawImage(src,0,0,cv.width,cv.height);
+      cv.toBlob(function(b){ b?res(b):rej(new Error("Conversion impossible")); },"image/jpeg",q);
+    }
+    function secours(){
+      var u=URL.createObjectURL(file), im=new Image();
+      im.onload=function(){fin(im,im.naturalWidth,im.naturalHeight);URL.revokeObjectURL(u);};
+      im.onerror=function(){URL.revokeObjectURL(u);rej(new Error("Photo illisible"));};
+      im.src=u;
+    }
+    if(window.createImageBitmap){
+      createImageBitmap(file,{imageOrientation:"from-image"}).then(function(b){
+        fin(b,b.width,b.height); if(b.close)b.close();
+      })["catch"](secours);
+    }else secours();
+  });
+}
+function ajouterPhotos(files){
+  if(!fiche.id||!files||!files.length)return;
+  toast("Traitement de "+files.length+" photo(s)…",4000);
+  var n=(S.nbPhotos[fiche.id]||0);
+  var chaine=Promise.resolve();
+  Array.prototype.slice.call(files).forEach(function(f){
+    chaine=chaine.then(function(){
+      return reduirePhoto(f,1600,0.82).then(function(blob){
+        n++;
+        return dbPut("photos",{id:uid(),pointId:fiche.id,projetId:S.projet.id,
+                               blob:blob,ordre:Date.now(),cree:nowISO()});
+      });
+    });
+  });
+  chaine.then(compterPhotos).then(function(){
+    rendreGalerie(); rendreListe(); toast(files.length+" photo(s) ajoutée(s)");
+  })["catch"](function(e){ toast("Erreur photo : "+e.message,4000); });
+}
+function enregistrerFiche(silencieux){
+  if(!fiche.id)return Promise.resolve();
+  var p=null;
+  for(var i=0;i<S.points.length;i++) if(S.points[i].id===fiche.id) p=S.points[i];
+  if(!p)return Promise.resolve();
+  var num=($("fi-num").value||"").trim()||p.numero;
+  p.numero=num; p.note=$("fi-note").value||""; p.statut=fiche.statut; p.modifie=nowISO();
+  return dbPut("points",p).then(function(){
+    trierPointsInternes(); dessinerMarqueurs(); rendreListe();
+    if(!silencieux)toast("Enregistré");
+  });
+}
+function supprimerPoint(id){
+  return dbDelPar("photos","pointId",id).then(function(){return dbDel("points",id);})
+    .then(function(){
+      S.points=S.points.filter(function(p){return p.id!==id;});
+      return compterPhotos();
+    }).then(function(){ dessinerMarqueurs(); rendreListe(); majReglages(); });
+}
+
+/* ========================= LISTE ========================= */
+function rendreListe(){
+  var box=$("liste"); if(!box)return;
+  var q=($("q").value||"").trim().toLowerCase();
+  var tri=$("tri").value;
+  var l=S.points.slice();
+  if(q)l=l.filter(function(p){
+    return String(p.numero).toLowerCase().indexOf(q)>=0 || String(p.note||"").toLowerCase().indexOf(q)>=0;});
+  var ordreSt={a_identifier:0,identifiee:1,traitee:2};
+  l.sort(function(a,b){
+    if(tri==="statut"){var d=(ordreSt[a.statut]||0)-(ordreSt[b.statut]||0); if(d)return d;}
+    if(tri==="date")return String(b.cree).localeCompare(String(a.cree));
+    return String(a.numero).localeCompare(String(b.numero),"fr",{numeric:true});
+  });
+  if(!S.points.length){
+    box.innerHTML='<div class="vide">Aucune boîte relevée.<br>Allez sur le plan et appuyez sur <b>+</b>.</div>';
+    return;
+  }
+  if(!l.length){box.innerHTML='<div class="vide">Aucun résultat pour « '+esc(q)+' ».</div>';return;}
+  var na=0,ni=0,nt=0;
+  S.points.forEach(function(p){ if(p.statut==="traitee")nt++; else if(p.statut==="identifiee")ni++; else na++; });
+  var h='<div class="carte" style="display:flex;gap:14px;justify-content:space-around;text-align:center">'+
+    '<div><div style="font-size:26px;font-weight:800;color:#E5484D">'+na+'</div><small>à identifier</small></div>'+
+    '<div><div style="font-size:26px;font-weight:800;color:#FF9C2E">'+ni+'</div><small>identifiées</small></div>'+
+    '<div><div style="font-size:26px;font-weight:800;color:#25C05A">'+nt+'</div><small>traitées</small></div>'+
+    '</div>';
+  l.forEach(function(p){
+    var np=S.nbPhotos[p.id]||0;
+    h+='<div class="ligne" data-fiche="'+esc(p.id)+'">'+
+       '<span class="pastille '+stCls(p.statut)+'"></span>'+
+       '<span class="txt"><b>'+esc(p.numero)+'</b><small>'+stNom(p.statut)+
+       (np?(" · "+np+" photo"+(np>1?"s":"")):"")+
+       (p.note?(" · "+esc(p.note)):"")+'</small></span>'+
+       '<button class="mini" data-centrer="'+esc(p.id)+'" title="Centrer sur le plan">'+
+       '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/>'+
+       '<circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none"/></svg></button></div>';
+  });
+  box.innerHTML=h;
+}
+
+/* ========================= EXPORTS ========================= */
+function telecharger(blob,nom){
+  var u=URL.createObjectURL(blob), a=document.createElement("a");
+  a.href=u; a.download=nom; a.style.display="none";
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ try{a.remove();URL.revokeObjectURL(u);}catch(e){} },2000);
+}
+function sortir(blob,nom,titre){
+  var f=null;
+  try{ f=new File([blob],nom,{type:blob.type||"application/octet-stream"}); }catch(e){}
+  if(f&&navigator.share&&navigator.canShare&&navigator.canShare({files:[f]})){
+    navigator.share({files:[f],title:titre||nom}).then(function(){toast("Fichier transmis");},
+      function(err){ if(err&&err.name==="AbortError")return; telecharger(blob,nom); });
+  }else{ telecharger(blob,nom); toast("Fichier téléchargé : "+nom,3500); }
+}
+function csvVal(v){
+  v=(v==null)?"":String(v);
+  return /[";\n\r]/.test(v)?('"'+v.replace(/"/g,'""')+'"'):v;
+}
+function nomsPhotos(){
+  return dbPar("photos","projetId",S.projet.id).then(function(ph){
+    ph=(ph||[]).sort(function(a,b){return (a.ordre||0)-(b.ordre||0);});
+    var par={}, cpt={};
+    ph.forEach(function(p){
+      var pt=null;
+      for(var i=0;i<S.points.length;i++) if(S.points[i].id===p.pointId) pt=S.points[i];
+      if(!pt)return;
+      cpt[pt.id]=(cpt[pt.id]||0)+1;
+      var nom=assainir(pt.numero)+"_"+cpt[pt.id]+".jpg";
+      (par[pt.id]=par[pt.id]||[]).push({nom:nom,blob:p.blob,id:p.id});
+    });
+    return par;
+  });
+}
+function construireCSV(par){
+  var l=["Numero;Statut;Note;X_plan_px;Y_plan_px;Latitude;Longitude;Date;Photos"];
+  S.points.forEach(function(p){
+    var ph=(par[p.id]||[]).map(function(x){return x.nom;}).join(" | ");
+    l.push([csvVal(p.numero),csvVal(stNom(p.statut)),csvVal(p.note),
+            csvVal(Math.round(p.x*10)/10),csvVal(Math.round(p.y*10)/10),
+            csvVal(p.lat!=null?p.lat.toFixed(7):""),csvVal(p.lon!=null?p.lon.toFixed(7):""),
+            csvVal(fmtDate(p.cree)),csvVal(ph)].join(";"));
+  });
+  return "\uFEFF" + l.join("\r\n") + "\r\n";
+}
+function baseNom(){ return "SC-Carto_"+assainir(S.projet.nom)+"_"+fmtFichier(); }
+function exportCSV(){
+  if(!verifPoints())return;
+  nomsPhotos().then(function(par){
+    sortir(new Blob([construireCSV(par)],{type:"text/csv;charset=utf-8"}),baseNom()+".csv","Listing SC Carto");
+  });
+}
+/* --- écriture ZIP « stocké » (sans compression) : les JPEG ne se compressent pas --- */
+var CRCT=(function(){var t=new Uint32Array(256),c,n,k;
+  for(n=0;n<256;n++){c=n;for(k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}
+  return t;})();
+function crc32(u8){var c=0xFFFFFFFF;
+  for(var i=0;i<u8.length;i++)c=CRCT[(c^u8[i])&0xFF]^(c>>>8);
+  return (c^0xFFFFFFFF)>>>0;}
+function zipCreer(entrees){
+  var d=new Date();
+  var ht=((d.getHours()&31)<<11)|((d.getMinutes()&63)<<5)|((d.getSeconds()>>1)&31);
+  var hd=(((d.getFullYear()-1980)&127)<<9)|(((d.getMonth()+1)&15)<<5)|(d.getDate()&31);
+  var enc=new TextEncoder(), parts=[], central=[], off=0, csz=0;
+  entrees.forEach(function(en){
+    var nom=enc.encode(en.nom), data=en.data, crc=crc32(data);
+    var lh=new DataView(new ArrayBuffer(30));
+    lh.setUint32(0,0x04034b50,true); lh.setUint16(4,20,true); lh.setUint16(6,0x0800,true);
+    lh.setUint16(8,0,true); lh.setUint16(10,ht,true); lh.setUint16(12,hd,true);
+    lh.setUint32(14,crc,true); lh.setUint32(18,data.length,true); lh.setUint32(22,data.length,true);
+    lh.setUint16(26,nom.length,true); lh.setUint16(28,0,true);
+    parts.push(lh.buffer,nom,data);
+    var ch=new DataView(new ArrayBuffer(46));
+    ch.setUint32(0,0x02014b50,true); ch.setUint16(4,20,true); ch.setUint16(6,20,true);
+    ch.setUint16(8,0x0800,true); ch.setUint16(10,0,true); ch.setUint16(12,ht,true); ch.setUint16(14,hd,true);
+    ch.setUint32(16,crc,true); ch.setUint32(20,data.length,true); ch.setUint32(24,data.length,true);
+    ch.setUint16(28,nom.length,true); ch.setUint32(42,off,true);
+    central.push(ch.buffer,nom); csz+=46+nom.length;
+    off+=30+nom.length+data.length;
+  });
+  var eo=new DataView(new ArrayBuffer(22));
+  eo.setUint32(0,0x06054b50,true); eo.setUint16(8,entrees.length,true); eo.setUint16(10,entrees.length,true);
+  eo.setUint32(12,csz,true); eo.setUint32(16,off,true); eo.setUint16(20,0,true);
+  return new Blob(parts.concat(central,[eo.buffer]),{type:"application/zip"});
+}
+function u8(blob){return blob.arrayBuffer().then(function(b){return new Uint8Array(b);});}
+function exportZIP(){
+  if(!verifPoints())return;
+  toast("Préparation du ZIP…",8000);
+  nomsPhotos().then(function(par){
+    var ent=[{nom:"releve.csv",data:new TextEncoder().encode(construireCSV(par))}];
+    var liste=[];
+    S.points.forEach(function(p){ (par[p.id]||[]).forEach(function(x){liste.push(x);}); });
+    var ch=Promise.resolve();
+    liste.forEach(function(x){
+      ch=ch.then(function(){return u8(x.blob).then(function(d){ent.push({nom:"photos/"+x.nom,data:d});});});
+    });
+    return ch.then(function(){
+      sortir(zipCreer(ent),baseNom()+".zip","Dossier SC Carto");
+    });
+  })["catch"](function(e){toast("Erreur ZIP : "+e.message,4000);});
+}
+function blobVersDataURL(b){
+  return new Promise(function(res,rej){
+    var fr=new FileReader();
+    fr.onload=function(){res(fr.result);};
+    fr.onerror=function(){rej(fr.error||new Error("Lecture impossible"));};
+    fr.readAsDataURL(b);
+  });
+}
+function dataURLversBlob(u){
+  var i=String(u).indexOf(","); if(i<0)throw new Error("Donnée invalide");
+  var type=(/data:([^;,]+)/.exec(u.slice(0,i))||[])[1]||"application/octet-stream";
+  var bin=atob(u.slice(i+1)), n=bin.length, a=new Uint8Array(n);
+  for(var j=0;j<n;j++)a[j]=bin.charCodeAt(j);
+  return new Blob([a],{type:type});
+}
+function exportJSON(avecPhotos){
+  if(!S.projet){toast("Aucun projet");return;}
+  toast("Préparation de la sauvegarde…",8000);
+  var pr=S.projet;
+  var out={format:"sc-carto",version:1,application:"SC Carto v"+VERSION,exporte:nowISO(),
+    projet:{id:pr.id,nom:pr.nom,prefixe:pr.prefixe,compteur:pr.compteur,
+            cree:pr.cree,modifie:pr.modifie,calage:pr.calage||null,fond:null},
+    points:[]};
+  var par={};
+  nomsPhotos().then(function(p){
+    par=p;
+    S.points.forEach(function(pt){
+      out.points.push({id:pt.id,couche:pt.couche||"boites_derivation",numero:pt.numero,
+        x:Math.round(pt.x*100)/100, y:Math.round(pt.y*100)/100,
+        lat:pt.lat!=null?pt.lat:null, lon:pt.lon!=null?pt.lon:null,
+        statut:pt.statut, note:pt.note||"", cree:pt.cree, modifie:pt.modifie,
+        photos:(par[pt.id]||[]).map(function(x){return {nom:x.nom};})});
+    });
+    if(!avecPhotos)return null;
+    var ch=Promise.resolve();
+    if(pr.fond&&pr.fond.blob){
+      ch=ch.then(function(){return blobVersDataURL(pr.fond.blob).then(function(u){
+        out.projet.fond={nom:pr.fond.nom,type:pr.fond.type,
+          largeur:pr.fond.largeur,hauteur:pr.fond.hauteur,donnees:u};});});
+    }
+    out.points.forEach(function(pt){
+      (par[pt.id]||[]).forEach(function(x,i){
+        ch=ch.then(function(){return blobVersDataURL(x.blob).then(function(u){
+          pt.photos[i].donnees=u; pt.photos[i].type="image/jpeg";});});
+      });
+    });
+    return ch;
+  }).then(function(){
+    if(!avecPhotos&&pr.fond)out.projet.fond={nom:pr.fond.nom,type:pr.fond.type,
+      largeur:pr.fond.largeur,hauteur:pr.fond.hauteur};
+    var b=new Blob([JSON.stringify(out,null,1)],{type:"application/json"});
+    sortir(b,baseNom()+(avecPhotos?"":"_leger")+".json","Sauvegarde SC Carto");
+  })["catch"](function(e){toast("Erreur sauvegarde : "+e.message,4500);});
+}
+function restaurer(file){
+  var fr=new FileReader();
+  fr.onload=function(){
+    var d;
+    try{ d=JSON.parse(fr.result); }catch(e){ toast("Fichier JSON illisible",4000); return; }
+    if(!d||d.format!=="sc-carto"||!d.projet){toast("Ce n'est pas une sauvegarde SC Carto",4000);return;}
+    if(!confirm("Restaurer le projet « "+(d.projet.nom||"?")+" » ?\n"+
+      ((d.points||[]).length)+" boîte(s). Il sera ajouté à côté des projets existants."))return;
+    toast("Restauration en cours…",9000);
+    var np=projetVide(d.projet.nom||"Projet restauré");
+    np.prefixe=d.projet.prefixe||"BD-"; np.compteur=d.projet.compteur||0;
+    np.cree=d.projet.cree||nowISO(); np.calage=d.projet.calage||null;
+    var ch=Promise.resolve();
+    if(d.projet.fond&&d.projet.fond.donnees){
+      try{
+        np.fond={blob:dataURLversBlob(d.projet.fond.donnees),nom:d.projet.fond.nom||"plan",
+                 type:d.projet.fond.type||"image/png",
+                 largeur:d.projet.fond.largeur,hauteur:d.projet.fond.hauteur};
+      }catch(e){}
+    }
+    ch=ch.then(function(){return dbPut("projets",np);});
+    (d.points||[]).forEach(function(pt){
+      var id=uid();
+      ch=ch.then(function(){
+        return dbPut("points",{id:id,projetId:np.id,couche:pt.couche||"boites_derivation",
+          numero:pt.numero||"?", x:+pt.x||0, y:+pt.y||0,
+          lat:(pt.lat==null?null:+pt.lat), lon:(pt.lon==null?null:+pt.lon),
+          statut:ST[pt.statut]?pt.statut:"a_identifier", note:pt.note||"",
+          cree:pt.cree||nowISO(), modifie:pt.modifie||nowISO()});
+      });
+      (pt.photos||[]).forEach(function(f,i){
+        if(!f.donnees)return;
+        ch=ch.then(function(){
+          return dbPut("photos",{id:uid(),pointId:id,projetId:np.id,
+            blob:dataURLversBlob(f.donnees),ordre:i,cree:pt.cree||nowISO()});
+        });
+      });
+    });
+    ch.then(function(){return chargerProjet(np.id);})
+      .then(function(){toast("Projet restauré : "+np.nom,3500);fermerTout();allerVue("v-plan");})
+      ["catch"](function(e){toast("Échec de la restauration : "+e.message,5000);});
+  };
+  fr.readAsText(file);
+}
+function verifPoints(){
+  if(!S.projet){toast("Aucun projet");return false;}
+  if(!S.points.length){toast("Aucune boîte à exporter");return false;}
+  return true;
+}
+
+/* ========================= FEUILLES / NAVIGATION ========================= */
+function ouvrir(id){$(id).classList.add("on");}
+function fermer(id){$(id).classList.remove("on");}
+function fermerTout(){qsa(".sheet").forEach(function(s){s.classList.remove("on");});}
+function allerVue(id){
+  qsa(".vue").forEach(function(v){v.classList.toggle("on",v.id===id);});
+  qsa("nav button").forEach(function(b){b.classList.toggle("on",b.dataset.vue===id);});
+  if(id==="v-plan"&&FW&&view.z===1&&view.x===0&&view.y===0)cadrer();
+  if(id==="v-liste")rendreListe();
+  if(id==="v-reglages")majReglages();
+}
+function majReglages(){
+  if(!S.projet)return;
+  var p=S.projet, c=cale();
+  $("rg-nom").textContent=p.nom;
+  $("rg-nb").textContent=S.points.length;
+  $("rg-fond").textContent=p.fond?(p.fond.largeur+"×"+p.fond.hauteur+" px"):"aucun";
+  $("rg-calage").textContent=c?("calé — 1 px = "+(c.echelle_m_par_px<0.01?
+     (c.echelle_m_par_px*1000).toFixed(1)+" mm":c.echelle_m_par_px.toFixed(3)+" m")):"non calé";
+  $("rg-cree").textContent=fmtDate(p.cree);
+  $("rg-i-nom").value=p.nom;
+  $("rg-i-prefixe").value=p.prefixe||"BD-";
+  $("b-decaler").classList.toggle("hide",!c);
+  $("sw-splash").classList.toggle("on",!!S.ui.splash);
+  $("sw-gps").classList.toggle("on",!!S.ui.gpsSuivi);
+}
+function rendreProjets(){
+  dbAll("projets").then(function(l){
+    l=(l||[]).sort(function(a,b){return String(b.modifie).localeCompare(String(a.modifie));});
+    var h="";
+    l.forEach(function(p){
+      var actif=S.projet&&p.id===S.projet.id;
+      h+='<div class="ligne" style="'+(actif?"border-color:var(--or)":"")+'" data-projet="'+esc(p.id)+'">'+
+         '<span class="txt"><b>'+esc(p.nom)+(actif?' <span style="color:#f5b301">•</span>':'')+'</b>'+
+         '<small>modifié le '+fmtDate(p.modifie)+'</small></span>'+
+         '<button class="mini" data-renommer="'+esc(p.id)+'" title="Renommer">'+
+         '<svg viewBox="0 0 24 24"><path d="M4 20h4l10-10-4-4L4 16zM14 6l4 4"/></svg></button></div>';
+    });
+    $("pr-liste").innerHTML=h||'<div class="vide">Aucun projet</div>';
+  });
+}
+
+/* ========================= CALAGE : assistant ========================= */
+var cal=null;
+function lancerCalage(){
+  if(!FW){toast("Importez d'abord un fond de plan");return;}
+  cal={etape:0,p1:null,p2:null};
+  ecranCalage();
+  ouvrir("sh-calage");
+}
+function ecranCalage(){
+  var b=$("cal-body"), f=$("cal-bas");
+  if(cal.etape===0){
+    b.innerHTML='<p class="info">Le calage relie le plan au GPS. Il faut <b>deux points</b> :'+
+      ' un coin de bâtiment, un poteau, un angle de clôture — quelque chose que vous savez'+
+      ' pointer précisément sur le plan.</p>'+
+      '<div class="etape"><h3>À faire</h3>1. Se placer <b>dehors</b>, dégagé, sur le premier point.<br>'+
+      '2. Le pointer sur le plan.<br>3. Capturer le GPS (5 secondes sans bouger).<br>'+
+      '4. Recommencer sur un second point, <b>le plus loin possible</b> du premier.</div>'+
+      '<p class="info">Une centaine de mètres entre les deux points donne un bon résultat.'+
+      ' En dessous de 20 m, le calage sera imprécis.</p>';
+    f.innerHTML='<button class="btn" data-cal="annuler">Plus tard</button>'+
+      '<button class="btn or" data-cal="pointer1">Commencer</button>';
+  }else if(cal.etape===1||cal.etape===3){
+    var n=(cal.etape===1)?1:2;
+    var p=(n===1)?cal.p1:cal.p2;
+    b.innerHTML='<div class="etape"><h3>Point '+n+' — capture GPS</h3>'+
+      'Position sur le plan : <b>'+Math.round(p.x)+' ; '+Math.round(p.y)+' px</b>.<br>'+
+      'Restez immobile pendant la mesure.</div>'+
+      '<div id="cal-mesure" class="info" style="font-size:16px;text-align:center;padding:14px 0">'+
+      'Appuyez sur « Capturer » et ne bougez plus.</div>';
+    f.innerHTML='<button class="btn" data-cal="repointer'+n+'">Repointer</button>'+
+      '<button class="btn or" data-cal="capturer'+n+'">Capturer (5 s)</button>';
+  }else if(cal.etape===4){
+    var c=calculerCalage(cal.p1,cal.p2);
+    if(!c){
+      b.innerHTML='<p class="info ko">Les deux points sont confondus sur le plan. Recommencez.</p>';
+      f.innerHTML='<button class="btn or plein" data-cal="recommencer">Recommencer</button>';
+      return;
+    }
+    cal.calcul=c;
+    var d=c.distance_m, prec=(cal.p1.acc+cal.p2.acc)/2;
+    var avis=(d<20)?'<p class="info wa">Les deux points sont proches ('+d.toFixed(0)+' m) :'+
+      ' le calage sera approximatif. Refaites-le avec un point plus éloigné si possible.</p>':
+      '<p class="info ok">Écartement correct : le calage devrait être fiable.</p>';
+    b.innerHTML='<div class="rub">Résultat</div>'+
+      '<div class="kv"><b>Distance entre les points</b><span>'+d.toFixed(1)+' m</span></div>'+
+      '<div class="kv"><b>Échelle du plan</b><span>1 px = '+
+        (c.echelle_m_par_px<0.01?(c.echelle_m_par_px*1000).toFixed(1)+" mm":c.echelle_m_par_px.toFixed(3)+" m")+'</span></div>'+
+      '<div class="kv"><b>Largeur du plan</b><span>'+(FW*c.echelle_m_par_px).toFixed(1)+' m</span></div>'+
+      '<div class="kv"><b>Précision GPS moyenne</b><span>± '+prec.toFixed(0)+' m</span></div>'+
+      '<div class="kv" style="border:0"><b>Rotation du plan</b><span>'+
+        (((Math.atan2(c.b,c.a)*180/Math.PI)+360)%360).toFixed(1)+'°</span></div>'+avis;
+    f.innerHTML='<button class="btn" data-cal="recommencer">Recommencer</button>'+
+      '<button class="btn or" data-cal="valider">Enregistrer le calage</button>';
+  }
+}
+function pointerCalage(n){
+  fermer("sh-calage");
+  var dep=(n===1&&cal.p1)?{x:cal.p1.x,y:cal.p1.y}:((n===2&&cal.p2)?{x:cal.p2.x,y:cal.p2.y}:null);
+  demarrerPose({
+    etiquette:"point "+n, depart:dep,
+    texte:"Point "+n+" : glissez le repère exactement sur le lieu où vous vous trouvez.",
+    onOk:function(x,y){
+      var o={x:x,y:y};
+      if(n===1){cal.p1=o;cal.etape=1;}else{cal.p2=o;cal.etape=3;}
+      ecranCalage(); ouvrir("sh-calage");
+    },
+    onAnnul:function(){ cal.etape=(n===1)?0:2; if(cal.etape===2)cal.etape=3; ecranCalage(); ouvrir("sh-calage"); }
+  });
+}
+function capturerCalage(n){
+  var z=$("cal-mesure");
+  z.innerHTML='<b style="font-size:22px;color:#f5b301">5,0 s</b><br>Ne bougez pas…';
+  qsa("#cal-bas button").forEach(function(b){b.disabled=true;});
+  capturerGPS(5,function(nb,reste){
+    z.innerHTML='<b style="font-size:22px;color:#f5b301">'+reste.toFixed(1)+' s</b><br>'+
+      (nb?(nb+" mesure(s) reçue(s)"):"En attente du GPS…");
+  }).then(function(r){
+    var p=(n===1)?cal.p1:cal.p2;
+    p.lat=r.lat; p.lon=r.lon; p.acc=r.acc; p.n=r.n;
+    z.innerHTML='<b class="ok">Point '+n+' capturé</b><br>± '+r.acc.toFixed(0)+' m sur '+r.n+' mesures';
+    qsa("#cal-bas button").forEach(function(b){b.disabled=false;});
+    if(n===1){ cal.etape=2; setTimeout(function(){pointerCalage(2);},700); }
+    else { cal.etape=4; setTimeout(ecranCalage,700); }
+  })["catch"](function(e){
+    z.innerHTML='<b class="ko">'+esc(e.message)+'</b>';
+    qsa("#cal-bas button").forEach(function(b){b.disabled=false;});
+  });
+}
+
+/* ========================= DIAGNOSTIC ========================= */
+function ligneDiag(etat,titre,detail){
+  var ic=etat==="ok"?"✔":(etat==="ko"?"✕":"!");
+  return '<div class="diag"><em class="'+(etat==="ok"?"ok":(etat==="ko"?"ko":"wa"))+'">'+ic+'</em>'+
+    '<div class="d1">'+esc(titre)+'<small>'+detail+'</small></div></div>';
+}
+function lancerDiagnostic(){
+  var b=$("diag-body");
+  b.innerHTML='<div class="vide">Tests en cours…</div>';
+  ouvrir("sh-diag");
+  var res=[];   /* indices fixes : l'ordre d'affichage ne dépend pas de l'ordre des réponses */
+  function fin(){ b.innerHTML=res.join("")+
+    '<div class="rub">Version</div>'+
+    '<div class="kv"><b>Application</b><span>SC Carto v'+VERSION+'</span></div>'+
+    '<div class="kv"><b>Mode</b><span>'+(window.matchMedia("(display-mode: standalone)").matches||
+      navigator.standalone?"installée":"navigateur")+'</span></div>'+
+    '<div class="kv"><b>Connexion</b><span>'+(navigator.onLine?"en ligne":"hors ligne")+'</span></div>'+
+    '<div class="kv" style="border:0"><b>Appareil</b><span style="font-size:12px;word-break:break-word">'+
+      esc(navigator.userAgent.slice(0,90))+'</span></div>'+
+    '<p class="info" style="margin-top:16px">En cas de souci, exportez d\'abord une sauvegarde JSON'+
+    ' avant toute manipulation.</p>'; }
+
+  var t1=DB?dbAll("projets").then(function(l){
+      res[0]=(ligneDiag("ok","Base de données locale",(l||[]).length+" projet(s) enregistré(s)"));
+    })["catch"](function(e){ res[0]=(ligneDiag("ko","Base de données locale",esc(e.message))); })
+    :Promise.resolve(res[0]=(ligneDiag("ko","Base de données locale","IndexedDB non ouverte")));
+
+  var t2=Promise.resolve().then(function(){
+    if(!("serviceWorker" in navigator)){res[1]=(ligneDiag("ko","Service worker","non supporté par ce navigateur"));return;}
+    return navigator.serviceWorker.getRegistration().then(function(r){
+      if(!r)res[1]=(ligneDiag("wa","Service worker","non enregistré — le hors-ligne ne fonctionnera pas"));
+      else res[1]=(ligneDiag(navigator.serviceWorker.controller?"ok":"wa","Service worker",
+        navigator.serviceWorker.controller?"actif — l'application fonctionne hors ligne":
+        "enregistré, actif au prochain lancement"));
+    });
+  })["catch"](function(e){res[1]=(ligneDiag("ko","Service worker",esc(e.message)));});
+
+  var t3=new Promise(function(r){
+    if(!navigator.geolocation){res[2]=(ligneDiag("ko","Géolocalisation","non supportée"));r();return;}
+    var fait=false;
+    var to=setTimeout(function(){if(!fait){fait=true;res[2]=(ligneDiag("wa","Géolocalisation",
+      "aucune position en 8 s — normal en intérieur"));r();}},8000);
+    navigator.geolocation.getCurrentPosition(function(p){
+      if(fait)return; fait=true; clearTimeout(to);
+      res[2]=(ligneDiag("ok","Géolocalisation","autorisée — précision ± "+Math.round(p.coords.accuracy)+" m")); r();
+    },function(e){
+      if(fait)return; fait=true; clearTimeout(to);
+      res[2]=(ligneDiag(e.code===1?"ko":"wa","Géolocalisation",
+        e.code===1?"refusée — à réautoriser dans les réglages du navigateur":"indisponible ("+esc(e.message)+")")); r();
+    },{enableHighAccuracy:true,timeout:8000,maximumAge:0});
+  });
+
+  var t4=Promise.resolve().then(function(){
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+      res[3]=(ligneDiag("wa","Caméra","API non disponible — la prise de photo passe par l'appareil photo du téléphone"));
+      return;}
+    return navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}}).then(function(st){
+      st.getTracks().forEach(function(t){t.stop();});
+      res[3]=(ligneDiag("ok","Caméra","autorisée et fonctionnelle"));
+    })["catch"](function(e){
+      res[3]=(ligneDiag(e&&e.name==="NotAllowedError"?"ko":"wa","Caméra",
+        e&&e.name==="NotAllowedError"?"refusée — à réautoriser dans les réglages du navigateur":
+        "non testable ("+esc(e&&e.name||"erreur")+")"));
+    });
+  });
+
+  var t5=Promise.resolve().then(function(){
+    if(!navigator.storage||!navigator.storage.estimate){
+      res[4]=(ligneDiag("wa","Espace de stockage","non mesurable"));return;}
+    return navigator.storage.estimate().then(function(e){
+      var mo=function(v){return (v/1048576).toFixed(1)+" Mo";};
+      var txt=mo(e.usage||0)+" utilisés sur "+mo(e.quota||0)+" disponibles";
+      return (navigator.storage.persisted?navigator.storage.persisted():Promise.resolve(null))
+        .then(function(p){
+          res[4]=(ligneDiag("ok","Espace de stockage",txt+(p===true?" — stockage permanent accordé":
+            (p===false?" — stockage non permanent (le système peut purger si l'appareil est saturé)":""))));
+        });
+    });
+  })["catch"](function(){res[4]=(ligneDiag("wa","Espace de stockage","non mesurable"));});
+
+  Promise.all([t1,t2,t3,t4,t5]).then(fin);
+}
+
+/* ========================= OUVERTURE SC ========================= */
+function splashSC(){
+  if(window.__scSplash)return; window.__scSplash=true;
+  var TR=[["M0,80 H180 L220,120 H283",0],["M0,320 H150 L200,268 H283",120],
+          ["M600,64 H430 L392,102 V148 H317",60],["M600,336 H460 L422,298 H317",180],
+          ["M84,0 V88 L124,128 V166",240],["M516,400 V312 L476,272 V234",300]];
+  var ends=[[283,120],[283,268],[317,148],[317,298],[124,166],[476,234]];
+  var svg='<svg style="position:absolute;inset:0;width:100%;height:100%" viewBox="0 0 600 400" preserveAspectRatio="xMidYMid slice">';
+  TR.forEach(function(t){svg+='<path class="trbg" d="'+t[0]+'"/>';});
+  TR.forEach(function(t){svg+='<path class="tr" pathLength="1" d="'+t[0]+'" style="animation-delay:'+t[1]+'ms"/>';});
+  ends.forEach(function(p,i){svg+='<circle class="pad" cx="'+p[0]+'" cy="'+p[1]+'" r="4" style="animation-delay:'+(TR[i][1]+620)+'ms"/>';});
+  svg+="</svg>";
+  var ov=document.createElement("div"); ov.id="sc-splash";
+  ov.innerHTML=svg+'<div style="position:relative;text-align:center">'+
+    (LOGO?('<img class="lg" src="'+LOGO+'" alt="Sari Concept">'):
+          ('<div class="lg" style="font-size:44px;font-weight:800;color:#eaf2f8">SARI CONCEPT</div>'))+
+    '<div class="tt">SC Carto <b>v'+VERSION+'</b></div></div>';
+  document.body.appendChild(ov);
+  retirerBoot();
+  var parti=false;
+  function sortir2(){
+    if(parti)return; parti=true;
+    ov.style.opacity="0";
+    setTimeout(function(){try{ov.remove();}catch(e){}},480);
+  }
+  ov.addEventListener("click",sortir2);
+  setTimeout(sortir2,2050);
+  setTimeout(function(){try{ov.remove();}catch(e){}},2900);
+}
+function retirerBoot(){
+  var b=$("sc-boot"); if(b&&b.parentNode)b.parentNode.removeChild(b);
+}
+
+/* ========================= SERVICE WORKER ========================= */
+function installerSW(){
+  if(!("serviceWorker" in navigator))return;
+  if(location.protocol!=="https:"&&location.hostname!=="localhost")return;
+  navigator.serviceWorker.register("sw.js").then(function(reg){
+    reg.addEventListener("updatefound",function(){
+      var nv=reg.installing; if(!nv)return;
+      nv.addEventListener("statechange",function(){
+        if(nv.state==="installed"&&navigator.serviceWorker.controller)
+          toast("Mise à jour disponible — fermez puis rouvrez SC Carto",6000);
+      });
+    });
+  })["catch"](function(){});
+}
+
+/* ========================= ÉVÉNEMENTS ========================= */
+function brancher(){
+  qsa("nav button").forEach(function(b){
+    b.addEventListener("click",function(){allerVue(b.dataset.vue);});
+  });
+  qsa("[data-close]").forEach(function(b){
+    b.addEventListener("click",function(){
+      var c=b.dataset.close;
+      if(c==="sh-fiche")enregistrerFiche(true);
+      fermer(c);
+    });
+  });
+
+  /* --- plan --- */
+  $("b-cadrer").addEventListener("click",cadrer);
+  $("b-lumiere").addEventListener("click",function(){
+    if(!S.projet)return;
+    S.projet.planClair=!S.projet.planClair;
+    $("plan").classList.toggle("clair",S.projet.planClair);
+    $("b-lumiere").classList.toggle("actif",S.projet.planClair);
+    sauverProjet();
+  });
+  $("b-suivre").addEventListener("click",function(){
+    var c=cale(), p=positionFraiche();
+    if(!c||!p){toast("Position indisponible");return;}
+    var xy=latLonVersPlan(p.lat,p.lon,c);
+    centrerSur(xy.x,xy.y,Math.max(view.z,1));
+  });
+  $("btn-add").addEventListener("click",function(){
+    if(!S.projet)return;
+    if(!FW){toast("Importez d'abord un fond de plan");return;}
+    var c=cale(), p=positionFraiche(), dep=null, txt=null;
+    if(c&&p){
+      var xy=latLonVersPlan(p.lat,p.lon,c);
+      if(xy.x>-FW&&xy.x<2*FW&&xy.y>-FH&&xy.y<2*FH){
+        dep={x:clamp(xy.x,0,FW),y:clamp(xy.y,0,FH)};
+        txt="Repère placé sur votre position GPS (± "+Math.round(p.acc)+" m). Ajustez-le, puis validez.";
+      }
+    }
+    demarrerPose({etiquette:(S.projet.prefixe||"BD-")+pad3((S.projet.compteur||0)+1),
+      depart:dep, texte:txt,
+      onOk:function(x,y){ nouveauPoint(x,y).then(function(p){ ouvrirFiche(p.id); }); }});
+  });
+  $("b-pose-annul").addEventListener("click",function(){
+    var f=pose&&pose.onAnnul; annulerPose(); if(f)f();
+  });
+  $("b-pose-ok").addEventListener("click",function(){
+    if(!pose)return;
+    var x=pose.x,y=pose.y,f=pose.onOk; annulerPose(); if(f)f(x,y);
+  });
+
+  /* --- fiche --- */
+  qsa("#fi-statut button").forEach(function(b){
+    b.addEventListener("click",function(){
+      fiche.statut=b.dataset.v;
+      qsa("#fi-statut button").forEach(function(o){o.classList.toggle("on",o===b);});
+    });
+  });
+  $("fi-ok").addEventListener("click",function(){enregistrerFiche().then(function(){fermer("sh-fiche");});});
+  $("fi-suppr").addEventListener("click",function(){
+    var p=null; for(var i=0;i<S.points.length;i++)if(S.points[i].id===fiche.id)p=S.points[i];
+    if(!p)return;
+    if(!confirm("Supprimer définitivement "+p.numero+" et ses photos ?"))return;
+    supprimerPoint(fiche.id).then(function(){fermer("sh-fiche");toast("Boîte supprimée");});
+  });
+  $("fi-photo").addEventListener("click",function(){$("f-photo").click();});
+  $("fi-galerie").addEventListener("click",function(){$("f-galerie").click();});
+  $("f-photo").addEventListener("change",function(e){ajouterPhotos(e.target.files);e.target.value="";});
+  $("f-galerie").addEventListener("change",function(e){ajouterPhotos(e.target.files);e.target.value="";});
+  $("fi-gal").addEventListener("click",function(e){
+    var d=e.target.closest("[data-suppr]");
+    if(d){
+      if(!confirm("Supprimer cette photo ?"))return;
+      dbDel("photos",d.dataset.suppr).then(compterPhotos).then(function(){rendreGalerie();rendreListe();});
+      return;
+    }
+    var v=e.target.closest("[data-voir]");
+    if(v){$("visio-img").src=v.dataset.voir;$("visio").classList.add("on");}
+  });
+  $("visio-x").addEventListener("click",function(){$("visio").classList.remove("on");$("visio-img").removeAttribute("src");});
+
+  /* --- liste --- */
+  $("q").addEventListener("input",rendreListe);
+  $("tri").addEventListener("change",rendreListe);
+  $("liste").addEventListener("click",function(e){
+    var c=e.target.closest("[data-centrer]");
+    if(c){
+      var id=c.dataset.centrer, p=null;
+      for(var i=0;i<S.points.length;i++)if(S.points[i].id===id)p=S.points[i];
+      if(!p)return;
+      allerVue("v-plan"); surlignerMarqueur(id);
+      setTimeout(function(){centrerSur(p.x,p.y,Math.max(view.z,1));},20);
+      return;
+    }
+    var f=e.target.closest("[data-fiche]");
+    if(f)ouvrirFiche(f.dataset.fiche);
+  });
+
+  /* --- exports --- */
+  $("b-exp-csv").addEventListener("click",exportCSV);
+  $("b-exp-zip").addEventListener("click",exportZIP);
+  $("b-exp-json").addEventListener("click",function(){exportJSON(true);});
+  $("b-exp-json-leger").addEventListener("click",function(){exportJSON(false);});
+  $("b-restaure").addEventListener("click",function(){$("f-restaure").click();});
+  $("f-restaure").addEventListener("change",function(e){
+    if(e.target.files[0])restaurer(e.target.files[0]); e.target.value="";
+  });
+
+  /* --- réglages --- */
+  $("b-rg-save").addEventListener("click",function(){
+    var n=($("rg-i-nom").value||"").trim(), p=($("rg-i-prefixe").value||"").trim();
+    if(!n){toast("Le nom du site est obligatoire");return;}
+    S.projet.nom=n; S.projet.prefixe=p||"BD-";
+    sauverProjet().then(function(){
+      $("hd-site").textContent=n; majReglages(); toast("Réglages enregistrés");
+    });
+  });
+  $("b-import-fond").addEventListener("click",function(){$("f-fond").click();});
+  $("b-import-fond2").addEventListener("click",function(){$("f-fond").click();});
+  $("f-fond").addEventListener("change",function(e){
+    var f=e.target.files[0]; e.target.value="";
+    if(!f)return;
+    if(f.size>40*1024*1024){toast("Fichier trop lourd (max 40 Mo)",4000);return;}
+    toast("Chargement du plan…",6000);
+    lireFond(f).then(function(rec){
+      var avant=S.projet.fond;
+      S.projet.fond=rec;
+      if(avant&&S.projet.calage&&(avant.largeur!==rec.largeur||avant.hauteur!==rec.hauteur)){
+        S.projet.calage=null;
+        toast("Plan remplacé — le calage GPS a été effacé (dimensions différentes)",5000);
+      }else toast("Plan chargé : "+rec.largeur+"×"+rec.hauteur+" px");
+      return sauverProjet();
+    }).then(function(){chargerFond();majReglages();majGPS();allerVue("v-plan");})
+    ["catch"](function(err){toast("Impossible de lire ce fichier : "+err.message,5000);});
+  });
+  $("b-suppr-fond").addEventListener("click",function(){
+    if(!S.projet.fond){toast("Aucun fond de plan");return;}
+    if(!confirm("Retirer le fond de plan ? Les boîtes et leurs coordonnées sont conservées."))return;
+    S.projet.fond=null;
+    sauverProjet().then(function(){chargerFond();majReglages();toast("Fond de plan retiré");});
+  });
+  $("b-calage").addEventListener("click",lancerCalage);
+  $("b-decaler").addEventListener("click",function(){
+    if(!confirm("Effacer le calage GPS ? Les boîtes déjà posées gardent leurs coordonnées."))return;
+    S.projet.calage=null;
+    sauverProjet().then(function(){majReglages();majGPS();toast("Calage effacé");});
+  });
+  $("cal-bas").addEventListener("click",function(e){
+    var b=e.target.closest("[data-cal]"); if(!b)return;
+    var a=b.dataset.cal;
+    if(a==="annuler"){fermer("sh-calage");}
+    else if(a==="pointer1"){pointerCalage(1);}
+    else if(a==="repointer1"){pointerCalage(1);}
+    else if(a==="repointer2"){pointerCalage(2);}
+    else if(a==="capturer1"){capturerCalage(1);}
+    else if(a==="capturer2"){capturerCalage(2);}
+    else if(a==="recommencer"){cal={etape:0,p1:null,p2:null};ecranCalage();}
+    else if(a==="valider"){
+      S.projet.calage=cal.calcul;
+      sauverProjet().then(function(){
+        var pts=S.points.filter(function(p){return p.lat==null;});
+        var ch=Promise.resolve();
+        pts.forEach(function(p){
+          var ll=planVersLatLon(p.x,p.y,cal.calcul);
+          p.lat=ll.lat; p.lon=ll.lon; p.modifie=nowISO();
+          ch=ch.then(function(){return dbPut("points",p);});
+        });
+        return ch;
+      }).then(function(){
+        fermer("sh-calage"); majReglages(); majGPS(); suivreGPS();
+        toast("Calage enregistré");
+      });
+    }
+  });
+  $("b-projets").addEventListener("click",function(){rendreProjets();ouvrir("sh-projets");});
+  $("pr-liste").addEventListener("click",function(e){
+    var r=e.target.closest("[data-renommer]");
+    if(r){
+      dbGet("projets",r.dataset.renommer).then(function(p){
+        var n=prompt("Nom du site :",p.nom);
+        if(n===null)return;
+        n=n.trim(); if(!n)return;
+        p.nom=n; p.modifie=nowISO();
+        return dbPut("projets",p).then(function(){
+          if(S.projet&&S.projet.id===p.id){S.projet.nom=n;$("hd-site").textContent=n;majReglages();}
+          rendreProjets();
+        });
+      });
+      return;
+    }
+    var d=e.target.closest("[data-projet]");
+    if(d&&(!S.projet||d.dataset.projet!==S.projet.id)){
+      chargerProjet(d.dataset.projet).then(function(){
+        fermer("sh-projets"); allerVue("v-plan"); toast("Projet : "+S.projet.nom);
+      });
+    }else if(d)fermer("sh-projets");
+  });
+  $("b-nouveau-projet").addEventListener("click",function(){
+    var n=prompt("Nom du site (ex. PALM Mortagne) :","");
+    if(n===null)return;
+    n=n.trim(); if(!n){toast("Nom obligatoire");return;}
+    var p=projetVide(n);
+    dbPut("projets",p).then(function(){return chargerProjet(p.id);}).then(function(){
+      fermer("sh-projets"); allerVue("v-reglages"); toast("Projet créé : "+n);
+    });
+  });
+  $("b-suppr-projet").addEventListener("click",function(){
+    if(!S.projet)return;
+    var n=S.projet.nom;
+    if(!confirm("Supprimer le projet « "+n+" », ses "+S.points.length+
+      " boîte(s), ses photos et son fond de plan ?\n\nCette action est définitive."))return;
+    if(!confirm("Dernière confirmation : tout sera perdu pour « "+n+" ».\nAvez-vous exporté une sauvegarde ?"))return;
+    var id=S.projet.id;
+    dbDelPar("photos","projetId",id)
+      .then(function(){return dbDelPar("points","projetId",id);})
+      .then(function(){return dbDel("projets",id);})
+      .then(function(){return dbAll("projets");})
+      .then(function(l){
+        if(l&&l.length)return chargerProjet(l[0].id);
+        var p=projetVide("Nouveau site");
+        return dbPut("projets",p).then(function(){return chargerProjet(p.id);});
+      }).then(function(){allerVue("v-plan");toast("Projet supprimé");});
+  });
+  $("sw-splash").addEventListener("click",function(){
+    S.ui.splash=!S.ui.splash; dbPut("reglages",S.ui); majReglages();
+  });
+  $("sw-gps").addEventListener("click",function(){
+    S.ui.gpsSuivi=!S.ui.gpsSuivi; dbPut("reglages",S.ui); majReglages();
+    if(S.ui.gpsSuivi)suivreGPS(); else stopGPS();
+  });
+  $("b-diag").addEventListener("click",lancerDiagnostic);
+  $("b-diag-relancer").addEventListener("click",lancerDiagnostic);
+  $("b-aide").addEventListener("click",function(){ouvrir("sh-aide");});
+
+  document.addEventListener("visibilitychange",function(){
+    if(document.hidden)stopGPS(); else if(S.ui.gpsSuivi&&cale())suivreGPS();
+  });
+  window.addEventListener("beforeunload",function(){
+    if($("sh-fiche").classList.contains("on"))enregistrerFiche(true);
+  });
+}
+
+/* ========================= DÉMARRAGE ========================= */
+var pts=0;
+var ivDots=setInterval(function(){
+  pts=(pts+1)%4; var d=$("boot-dots"); if(d)d.textContent="...".slice(0,pts);
+},380);
+setTimeout(function(){ retirerBoot(); },9000);   /* garde-fou anti-blocage */
+
+function demarrer(){
+  planEl=$("plan"); world=$("world"); fondImg=$("fond"); mkBox=$("marqueurs");
+  if(LOGO)$("boot-logo").src=LOGO; else $("boot-logo").style.display="none";
+  installerGestes(); brancher(); installerSW();
+  var t0=Date.now();
+  dbOpen().then(function(){
+    return dbGet("reglages","ui");
+  }).then(function(u){
+    if(u)S.ui=u;
+    if(S.ui.splash===undefined)S.ui.splash=true;
+    if(S.ui.gpsSuivi===undefined)S.ui.gpsSuivi=true;
+    return dbAll("projets");
+  }).then(function(l){
+    l=l||[];
+    if(!l.length){
+      var p=projetVide("Nouveau site");
+      return dbPut("projets",p).then(function(){return p.id;});
+    }
+    var id=S.ui.dernier;
+    var ok=l.some(function(p){return p.id===id;});
+    if(!ok){ l.sort(function(a,b){return String(b.modifie).localeCompare(String(a.modifie));}); id=l[0].id; }
+    return id;
+  }).then(chargerProjet).then(function(){
+    if(S.ui.gpsSuivi)suivreGPS();
+    if(navigator.storage&&navigator.storage.persist)
+      navigator.storage.persist()["catch"](function(){});
+    clearInterval(ivDots);
+    var reste=Math.max(0,700-(Date.now()-t0));
+    setTimeout(function(){ if(S.ui.splash)splashSC(); else retirerBoot(); },reste);
+  })["catch"](function(e){
+    clearInterval(ivDots); retirerBoot();
+    document.body.insertAdjacentHTML("beforeend",
+      '<div style="position:fixed;inset:0;z-index:999;background:#0A1422;padding:28px;'+
+      'display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:16px">'+
+      '<b style="color:#E5484D;font-size:20px">Démarrage impossible</b>'+
+      '<div style="color:#9FB7C9;line-height:1.5">'+esc(e.message)+'<br><br>'+
+      'Vérifiez que le navigateur autorise le stockage local (pas de navigation privée).</div></div>');
+  });
+}
+if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",demarrer);
+else demarrer();
+})();
+</script>
+</body>
+</html>

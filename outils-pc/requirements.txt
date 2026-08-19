@@ -1,0 +1,3 @@
+# Boîte à outils PC de SC Carto
+# Installation :  pip install -r requirements.txt
+ezdxf>=1.1

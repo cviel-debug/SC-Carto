@@ -1,0 +1,19 @@
+{
+  "name": "SC Carto — cartographie terrain",
+  "short_name": "SC Carto",
+  "description": "Recensement des boîtes de dérivation sur le plan d'un site. Sari-Concept, agence de l'Orne.",
+  "lang": "fr",
+  "dir": "ltr",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0A1422",
+  "theme_color": "#0A1422",
+  "categories": ["utilities", "productivity"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
