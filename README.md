@@ -191,6 +191,27 @@ qui les encoderait en texte.
 
 *Reprendre un relevé* rouvre ce ZIP (les anciens fichiers `.json` restent acceptés).
 
+### Faire descendre le fichier sur le PC
+
+Deux boutons sur la fiche « Fichier prêt » :
+
+* **Envoyer vers…** ouvre le menu de partage du téléphone. Sur iPhone, *Enregistrer
+  dans Dropbox* est dans la **liste du bas**, qu'il faut faire défiler — pas dans la
+  rangée d'icônes du haut. Si Dropbox n'y figure pas alors que l'application est
+  installée, son extension a été désactivée : tout en bas de cette liste,
+  **Modifier les actions**, puis on la réactive.
+* **Enregistrer** dépose le fichier dans l'application *Fichiers*.
+
+**Le réglage qui supprime la corvée**, à faire une fois :
+`Réglages ▸ Safari ▸ Téléchargements` → choisir un dossier **Dropbox**.
+Le bouton *Enregistrer* y dépose alors le fichier directement, sans aucun menu,
+et le PC le voit arriver par la synchronisation Dropbox.
+
+Dans l'autre sens (le plan qui descend sur le téléphone) : déposer le `.svg` dans
+Dropbox, puis *Réglages ▸ Importer un fond de plan ▸ Parcourir ▸ Dropbox*.
+Si Dropbox n'apparaît pas dans le sélecteur : application *Fichiers* → les trois
+points en haut → *Modifier* → activer Dropbox.
+
 ---
 
 ## 3. Les outils PC
