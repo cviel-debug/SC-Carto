@@ -134,12 +134,31 @@ si le calage est fait, sinon au centre de l'écran → on le fait glisser au doi
 **Numérotation** : automatique, `BD-001`, `BD-002`… Le préfixe se change dans
 les Réglages, par projet.
 
-**Calage GPS** (facultatif) : deux points suffisent. Se placer **dehors** à un
-coin repérable du bâtiment, le pointer sur le plan, capturer 5 secondes de GPS ;
-recommencer à l'angle **le plus éloigné possible**. L'application calcule alors
+**Calage** (facultatif) : deux points suffisent. L'application en déduit
 l'échelle, la rotation et la position du plan, affiche votre position en direct
 et donne à chaque boîte ses coordonnées latitude/longitude.
 Sans calage, tout le reste fonctionne normalement.
+
+Deux méthodes, au choix au début de l'assistant :
+
+* **① Saisir les coordonnées — la plus juste.** Sur l'ordinateur, clic droit dans
+  Google Earth (ou sur cartes.gouv.fr) sur deux points reconnaissables du site :
+  leurs coordonnées s'affichent, on les recopie. Rien à mesurer sur place, donc
+  aucune dérive. C'est la méthode à privilégier quand le fond de plan vient
+  d'une image aérienne.
+* **② Mesurer au GPS sur place.** Se placer **dehors** sur chaque point, le
+  pointer sur le plan, laisser mesurer 5 secondes. Il faut **réellement marcher**
+  entre les deux mesures : sinon le téléphone renvoie deux fois la même position.
+  L'application écarte désormais les positions périmées ou imprécises et attend
+  de vraies mesures satellite.
+
+Dans les deux cas, l'application annonce **la taille qu'aurait le plan**
+(« 120 m × 80 m ») et demande confirmation. Elle refuse d'enregistrer un calage
+dont les deux relevés sont distants de moins de 15 m, ou qui donne des
+dimensions absurdes — c'est le garde-fou contre le calage silencieusement faux.
+
+*Réglages ▸ Détail du calage* rouvre à tout moment les deux points, leur
+écartement et l'échelle obtenue.
 
 **Plein soleil** : le bouton **☀** en haut à droite du plan passe le fond
 en blanc. Le reste de l'interface ne bouge pas.
