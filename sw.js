@@ -1,25 +1,31 @@
 /* SC Carto — service worker
    Rôle : rendre l'application utilisable hors ligne (usine, sous-sol, pas de réseau).
-   Stratégie : « cache d'abord » pour la coquille, avec rafraîchissement en arrière-plan.
-   Aucune donnée métier ne transite ici : les relevés vivent dans IndexedDB, côté page. */
 
-var VERSION = "sc-carto-v1.0.0";
-var COQUILLE = [
-  "./",
-  "./index.html",
-  "./manifest.webmanifest",
-  "./favicon.png",
-  "./icon-192.png",
-  "./icon-512.png",
-  "./apple-touch-icon.png"
-];
+   Stratégie pour la page elle-même : « cache d'abord, rafraîchi derrière ».
+   Le cache répond immédiatement — jamais d'écran blanc, même en réseau dégradé —
+   et pendant ce temps la dernière version est cherchée sur le réseau pour le
+   lancement SUIVANT. Publier une mise à jour ne demande donc toujours que de
+   remplacer index.html ; elle arrive au deuxième lancement.
+
+   Aucune donnée métier ne transite ici : les relevés vivent dans IndexedDB. */
+
+var VERSION = "sc-carto-v1.1.0";
+var ESSENTIELS = ["./", "./index.html"];
+var OPTIONNELS = ["./manifest.webmanifest", "./favicon.png",
+                  "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
 
 self.addEventListener("install", function (e) {
   e.waitUntil(
     caches.open(VERSION).then(function (c) {
-      return Promise.all(COQUILLE.map(function (u) {
-        return c.add(new Request(u, { cache: "reload" }))["catch"](function () { /* fichier optionnel */ });
-      }));
+      /* La coquille : si elle ne se met pas en cache, l'installation ÉCHOUE
+         (le navigateur retentera) — un hors-ligne à coquille vide est pire
+         qu'un service worker en retard. Les icônes, elles, sont tolérées. */
+      return c.addAll(ESSENTIELS.map(function (u) { return new Request(u, { cache: "reload" }); }))
+        .then(function () {
+          return Promise.all(OPTIONNELS.map(function (u) {
+            return c.add(new Request(u, { cache: "reload" }))["catch"](function () {});
+          }));
+        });
     }).then(function () { return self.skipWaiting(); })
   );
 });
@@ -32,29 +38,14 @@ self.addEventListener("activate", function (e) {
   );
 });
 
-/* Récupère l'application sur le réseau, sinon dans le cache.
-   Délai court : au-delà, on n'attend pas et on sert la version en cache. */
-function reseauDabord(requete, secours, delai) {
-  return new Promise(function (res) {
-    var repondu = false;
-    function servirCache() {
-      if (repondu) return;
-      repondu = true;
-      caches.match(secours).then(function (rep) {
-        res(rep || Response.error());
-      });
-    }
-    var minuteur = setTimeout(servirCache, delai);
-    fetch(requete, { cache: "no-store" }).then(function (net) {
-      if (!net || net.status !== 200) throw new Error("reponse inutilisable");
+/* Va chercher la page sur le réseau et met le cache à jour pour la prochaine fois. */
+function rafraichir(cle) {
+  return fetch(new Request(cle, { cache: "no-store" })).then(function (net) {
+    if (net && net.status === 200) {
       var copie = net.clone();
-      caches.open(VERSION).then(function (c) { c.put(secours, copie); });
-      clearTimeout(minuteur);
-      if (!repondu) { repondu = true; res(net); }
-    })["catch"](function () {
-      clearTimeout(minuteur);
-      servirCache();
-    });
+      caches.open(VERSION).then(function (c) { c.put(cle, copie); });
+    }
+    return net;
   });
 }
 
@@ -64,24 +55,29 @@ self.addEventListener("fetch", function (e) {
   var u = new URL(r.url);
   if (u.origin !== self.location.origin) return;
 
-  /* L'application elle-même : réseau d'abord, cache en secours.
-     Une nouvelle version mise en ligne est donc prise au lancement suivant,
-     sans rien avoir à modifier ici — et hors ligne, le cache prend le relais. */
-  if (r.mode === "navigate" || /(^|\/)(index\.html)?$/.test(u.pathname)) {
-    e.respondWith(reseauDabord(r, "./index.html", 2500));
+  /* La page : cache immédiat + rafraîchissement silencieux derrière. */
+  if (r.mode === "navigate") {
+    e.respondWith(
+      caches.match("./index.html").then(function (rep) {
+        var reseau = rafraichir("./index.html");
+        if (rep) { reseau["catch"](function () {}); return rep; }
+        return reseau["catch"](function () { return caches.match("./"); });
+      })
+    );
     return;
   }
 
+  /* Le reste (icônes, manifeste) : cache d'abord, réseau en secours. */
   e.respondWith(
     caches.match(r).then(function (rep) {
-      var reseau = fetch(r).then(function (net) {
+      if (rep) return rep;
+      return fetch(r).then(function (net) {
         if (net && net.status === 200 && net.type === "basic") {
           var copie = net.clone();
           caches.open(VERSION).then(function (c) { c.put(r, copie); });
         }
         return net;
-      })["catch"](function () { return rep; });
-      return rep || reseau;
+      });
     })
   );
 });

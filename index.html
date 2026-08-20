@@ -911,6 +911,17 @@ function latLonVersPlan(lat,lon,c){
   return {x:(c.a*de+c.b*dn)/q, y:-((c.a*dn-c.b*de)/q)};
 }
 function cale(){var c=S.projet&&S.projet.calage; return (c&&c.actif)?c:null;}
+/* Réécrit lat/lon de toutes les boîtes du projet à partir de leur position plan.
+   c=null les efface (plus de calage → plus de coordonnées). Renvoie le nombre traité. */
+function recalculerLatLon(c){
+  var ch=Promise.resolve();
+  S.points.forEach(function(p){
+    var ll=c?planVersLatLon(p.x,p.y,c):null;
+    p.lat=ll?ll.lat:null; p.lon=ll?ll.lon:null; p.modifie=nowISO();
+    ch=ch.then(function(){return dbPut("points",p);});
+  });
+  return ch.then(function(){return S.points.length;});
+}
 
 var geo={watch:null,last:null,err:null};
 function suivreGPS(){
@@ -993,6 +1004,7 @@ function majCercleGPS(){
    Une telle mesure ne bouge pas quand on marche : elle écrase l'échelle du calage
    sans que rien ne le signale. On écarte donc ce qui est périmé ou imprécis,
    et on patiente jusqu'à obtenir de vraies mesures satellite. */
+var annulerCaptureGPS=null;   /* posé pendant une mesure : fermer l'assistant l'appelle */
 function capturerGPS(sec,onTick){
   return new Promise(function(res,rej){
     if(!navigator.geolocation){rej(new Error("Géolocalisation indisponible sur cet appareil"));return;}
@@ -1001,10 +1013,11 @@ function capturerGPS(sec,onTick){
     if(suiviAvant)stopGPS();            /* une seule source de mesure à la fois */
     var ech=[], vus=0, motif="", t0=Date.now(), w=null, iv=null, fini=false;
     function stop(){
-      fini=true; clearInterval(iv);
+      fini=true; clearInterval(iv); annulerCaptureGPS=null;
       if(w!==null){try{navigator.geolocation.clearWatch(w);}catch(e){} w=null;}
       if(suiviAvant&&S.ui.gpsSuivi)suivreGPS();
     }
+    annulerCaptureGPS=function(){ if(!fini){stop(); rej(new Error("Mesure annulée"));} };
     function terminer(){
       if(fini)return; stop();
       if(!ech.length){
@@ -1105,6 +1118,7 @@ function ouvrirFiche(id){
   var p=null;
   for(var i=0;i<S.points.length;i++) if(S.points[i].id===id) p=S.points[i];
   if(!p)return;
+  clearTimeout(ficheT);   /* une écriture différée de la fiche précédente ne doit pas déborder ici */
   fiche.id=id; fiche.statut=p.statut;
   $("fi-titre").textContent=p.numero;
   $("fi-num").value=p.numero;
@@ -1157,20 +1171,22 @@ function reduirePhoto(file,maxPx,q){
 }
 function ajouterPhotos(files){
   if(!fiche.id||!files||!files.length)return;
+  /* figés à l'appui : si l'utilisateur change de fiche pendant le traitement,
+     les photos restent rattachées à la boîte sur laquelle il les a prises */
+  var pointId=fiche.id, projetId=S.projet.id;
   toast("Traitement de "+files.length+" photo(s)…",4000);
-  var n=(S.nbPhotos[fiche.id]||0);
   var chaine=Promise.resolve();
   Array.prototype.slice.call(files).forEach(function(f){
     chaine=chaine.then(function(){
       return reduirePhoto(f,1600,0.82).then(function(blob){
-        n++;
-        return dbPut("photos",{id:uid(),pointId:fiche.id,projetId:S.projet.id,
+        return dbPut("photos",{id:uid(),pointId:pointId,projetId:projetId,
                                blob:blob,ordre:Date.now(),cree:nowISO()});
       });
     });
   });
   chaine.then(compterPhotos).then(function(){
-    rendreGalerie(); rendreListe(); toast(files.length+" photo(s) ajoutée(s)");
+    if(fiche.id===pointId)rendreGalerie();
+    rendreListe(); toast(files.length+" photo(s) ajoutée(s)");
   })["catch"](function(e){ toast("Erreur photo : "+e.message,4000); });
 }
 /* Tout est écrit dans la base au fil de la saisie : il n'y a rien à « valider ».
@@ -1194,6 +1210,10 @@ function ficheModifiee(leger){
       var e=$("fi-etat"); if(!e)return;
       e.style.opacity="1";
       clearTimeout(etatT); etatT=setTimeout(function(){e.style.opacity="0";},1500);
+    })["catch"](function(e){
+      /* un échec d'écriture ne doit JAMAIS être silencieux : l'utilisateur
+         croirait la saisie enregistrée alors qu'elle ne l'est pas */
+      toast("ÉCRITURE IMPOSSIBLE — "+e.message+"\nNe fermez pas la fiche.",6000);
     });
   },leger?450:0);
 }
@@ -1283,10 +1303,12 @@ function sortir(blob,nom,titre){
 function remettreFichier(){
   if(!fichierPret)return;
   var b=fichierPret.blob, nom=fichierPret.nom, titre=fichierPret.titre, f=null;
-  if(/\.zip$/i.test(nom))marquerTransmis();
   try{ f=new File([b],nom,{type:b.type||"application/octet-stream"}); }catch(e){}
   if(f&&navigator.share&&navigator.canShare&&navigator.canShare({files:[f]})){
     navigator.share({files:[f],title:titre||nom}).then(function(){
+      /* ce n'est qu'ICI, partage réellement abouti, que le relevé compte
+         comme transmis — annuler le menu ne doit pas éteindre le rappel */
+      if(/\.zip$/i.test(nom))marquerTransmis();
       fermer("sh-fichier"); toast("Fichier transmis");
     },function(err){
       if(err&&err.name==="AbortError")return;      /* l'utilisateur a renoncé */
@@ -1309,17 +1331,29 @@ function csvVal(v){
 function nomsPhotos(){
   return dbPar("photos","projetId",S.projet.id).then(function(ph){
     ph=(ph||[]).sort(function(a,b){return (a.ordre||0)-(b.ordre||0);});
+    /* Le compteur est tenu par nom de fichier, pas par boîte : deux boîtes
+       portant le même numéro (ou assainies pareil) ne peuvent plus produire
+       deux photos de même nom qui s'écraseraient dans le ZIP. */
     var par={}, cpt={};
     ph.forEach(function(p){
       var pt=null;
       for(var i=0;i<S.points.length;i++) if(S.points[i].id===p.pointId) pt=S.points[i];
       if(!pt)return;
-      cpt[pt.id]=(cpt[pt.id]||0)+1;
-      var nom=assainir(pt.numero)+"_"+cpt[pt.id]+".jpg";
+      var base=assainir(pt.numero);
+      cpt[base]=(cpt[base]||0)+1;
+      var nom=base+"_"+cpt[base]+".jpg";
       (par[pt.id]=par[pt.id]||[]).push({nom:nom,blob:p.blob,id:p.id});
     });
     return par;
   });
+}
+function numerosEnDouble(){
+  var vus={}, doubles={};
+  S.points.forEach(function(p){
+    var n=String(p.numero);
+    if(vus[n])doubles[n]=true; else vus[n]=true;
+  });
+  return Object.keys(doubles);
 }
 function construireCSV(par){
   var l=["Numero;Statut;Note;X_plan_px;Y_plan_px;Latitude;Longitude;Date;Photos"];
@@ -1372,6 +1406,11 @@ function u8(blob){return blob.arrayBuffer().then(function(b){return new Uint8Arr
    quatre fois plus léger que de les encoder en texte dans un JSON. */
 function exporterReleve(){
   if(!verifPoints())return;
+  var dbl=numerosEnDouble();
+  if(dbl.length&&!confirm("Attention : numéro"+(dbl.length>1?"s":"")+" en double — "+
+    dbl.slice(0,4).join(", ")+(dbl.length>4?"…":"")+
+    "\nLes photos resteront distinctes, mais le listing sera ambigu."+
+    "\nExporter quand même ?"))return;
   toast("Préparation du dossier…",9000);
   var pr=S.projet, ent=[], nomFond=null;
   nomsPhotos().then(function(par){
@@ -1419,57 +1458,69 @@ function dataURLversBlob(u){
   return new Blob([a],{type:type});
 }
 
-/* --- lecture d'un ZIP (symétrique de zipCreer) --- */
-function zipLire(u8t){
-  var dv=new DataView(u8t.buffer,u8t.byteOffset,u8t.byteLength), eo=-1;
-  for(var i=u8t.length-22;i>=0&&i>u8t.length-66000;i--){
-    if(dv.getUint32(i,true)===0x06054b50){eo=i;break;}
-  }
-  if(eo<0)throw new Error("Fichier ZIP illisible");
-  var nb=dv.getUint16(eo+10,true), p=dv.getUint32(eo+16,true);
-  var dec=new TextDecoder(), fichiers={};
-  for(var k=0;k<nb;k++){
-    if(dv.getUint32(p,true)!==0x02014b50)break;
-    var nl=dv.getUint16(p+28,true), el=dv.getUint16(p+30,true), cl=dv.getUint16(p+32,true);
-    var meth=dv.getUint16(p+10,true), csz=dv.getUint32(p+20,true), lo=dv.getUint32(p+42,true);
-    var nom=dec.decode(u8t.slice(p+46,p+46+nl));
-    var deb=lo+30+dv.getUint16(lo+26,true)+dv.getUint16(lo+28,true);
-    fichiers[nom]={methode:meth,donnees:u8t.slice(deb,deb+csz)};
-    p+=46+nl+el+cl;
-  }
-  return fichiers;
+/* --- lecture d'un ZIP, à la demande depuis le fichier -----------------------
+   On ne lit que l'annuaire (fin du fichier) ; chaque entrée n'est chargée en
+   mémoire qu'au moment où on en a besoin, via file.slice(). Un relevé de
+   80 photos ne coûte ainsi jamais plus que la photo en cours. */
+function tranche(file,deb,fin){
+  return file.slice(deb,fin).arrayBuffer().then(function(b){return new Uint8Array(b);});
 }
-function zipContenu(e){
+function zipLireFichier(file){
+  var queue=Math.min(file.size,66000);
+  return tranche(file,file.size-queue,file.size).then(function(u8t){
+    var dv=new DataView(u8t.buffer), eo=-1;
+    for(var i=u8t.length-22;i>=0;i--){
+      if(dv.getUint32(i,true)===0x06054b50){eo=i;break;}
+    }
+    if(eo<0)throw new Error("Fichier ZIP illisible");
+    var nb=dv.getUint16(eo+10,true), cdOff=dv.getUint32(eo+16,true), cdSz=dv.getUint32(eo+12,true);
+    return tranche(file,cdOff,cdOff+cdSz).then(function(cd){
+      var d2=new DataView(cd.buffer), dec=new TextDecoder(), fichiers={}, p=0;
+      for(var k=0;k<nb;k++){
+        if(p+46>cd.length||d2.getUint32(p,true)!==0x02014b50)break;
+        var nl=d2.getUint16(p+28,true), el=d2.getUint16(p+30,true), cl=d2.getUint16(p+32,true);
+        fichiers[dec.decode(cd.slice(p+46,p+46+nl))]={
+          methode:d2.getUint16(p+10,true),
+          csz:d2.getUint32(p+20,true),
+          lo:d2.getUint32(p+42,true)};
+        p+=46+nl+el+cl;
+      }
+      return fichiers;
+    });
+  });
+}
+function zipContenu(file,e){
   if(!e)return Promise.resolve(null);
-  if(e.methode===0)return Promise.resolve(e.donnees);
-  if(typeof DecompressionStream==="undefined")
-    return Promise.reject(new Error("Ce ZIP est compressé et ce navigateur ne sait pas le lire"));
-  return new Response(new Blob([e.donnees]).stream()
-    .pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer()
-    .then(function(b){return new Uint8Array(b);});
+  return tranche(file,e.lo,e.lo+30).then(function(lh){
+    var d=new DataView(lh.buffer);
+    if(d.getUint32(0,true)!==0x04034b50)throw new Error("Entrée ZIP corrompue");
+    var deb=e.lo+30+d.getUint16(26,true)+d.getUint16(28,true);
+    return tranche(file,deb,deb+e.csz);
+  }).then(function(donnees){
+    if(e.methode===0)return donnees;
+    if(typeof DecompressionStream==="undefined")
+      throw new Error("Ce ZIP est compressé et ce navigateur ne sait pas le lire");
+    return new Response(new Blob([donnees]).stream()
+      .pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer()
+      .then(function(b){return new Uint8Array(b);});
+  });
 }
 /* Reprend un relevé depuis le dossier ZIP, ou depuis un ancien fichier JSON. */
 function restaurer(file){
-  var fr=new FileReader();
-  fr.onerror=function(){toast("Lecture du fichier impossible",4000);};
-  fr.onload=function(){
-    var brut=new Uint8Array(fr.result), fichiers=null, texte=null;
-    try{
-      if(brut.length>4&&brut[0]===0x50&&brut[1]===0x4B){
-        fichiers=zipLire(brut);
+  tranche(file,0,4).then(function(tete){
+    if(tete.length>3&&tete[0]===0x50&&tete[1]===0x4B){
+      return zipLireFichier(file).then(function(fichiers){
         var j=fichiers["releve.json"];
         if(!j)throw new Error("Ce ZIP ne contient pas de relevé SC Carto");
-        return zipContenu(j).then(function(d){
-          reprendre(JSON.parse(new TextDecoder().decode(d)),fichiers);
-        })["catch"](function(e){toast(e.message,5000);});
-      }
-      texte=new TextDecoder().decode(brut);
-      reprendre(JSON.parse(texte),null);
-    }catch(e){ toast("Fichier illisible : "+e.message,5000); }
-  };
-  fr.readAsArrayBuffer(file);
+        return zipContenu(file,j).then(function(d){
+          reprendre(JSON.parse(new TextDecoder().decode(d)),file,fichiers);
+        });
+      });
+    }
+    return file.text().then(function(texte){ reprendre(JSON.parse(texte),null,null); });
+  })["catch"](function(e){ toast("Fichier illisible : "+e.message,5000); });
 }
-function reprendre(d,fichiers){
+function reprendre(d,zipFile,fichiers){
   if(!d||d.format!=="sc-carto"||!d.projet){toast("Ce n'est pas un relevé SC Carto",4000);return;}
   if(!confirm("Reprendre le projet « "+(d.projet.nom||"?")+" » ?\n"+
     ((d.points||[]).length)+" boîte(s). Il sera ajouté à côté des projets existants."))return;
@@ -1478,28 +1529,28 @@ function reprendre(d,fichiers){
   np.prefixe=d.projet.prefixe||"BD-"; np.compteur=d.projet.compteur||0;
   np.cree=d.projet.cree||nowISO(); np.calage=d.projet.calage||null;
 
-  /* v2 : le fichier est dans le ZIP ; v1 : encodé en texte dans le JSON */
+  /* v2 : le fichier est dans le ZIP (lu à la demande) ; v1 : encodé dans le JSON */
   function charger(ref,type){
     if(!ref)return Promise.resolve(null);
     if(ref.donnees){ try{ return Promise.resolve(dataURLversBlob(ref.donnees)); }
                      catch(e){ return Promise.resolve(null); } }
-    if(ref.fichier&&fichiers){
-      return zipContenu(fichiers[ref.fichier]).then(function(d2){
+    if(ref.fichier&&fichiers&&zipFile){
+      return zipContenu(zipFile,fichiers[ref.fichier]).then(function(d2){
         return d2?new Blob([d2],{type:type||"application/octet-stream"}):null;
       })["catch"](function(){return null;});
     }
     return Promise.resolve(null);
   }
-  var ch=charger(d.projet.fond,(d.projet.fond&&d.projet.fond.type)||"image/png")
-    .then(function(b){
-      if(b&&d.projet.fond)np.fond={blob:b,nom:d.projet.fond.nom||"plan",
-        type:d.projet.fond.type||"image/png",
-        largeur:d.projet.fond.largeur,hauteur:d.projet.fond.hauteur};
-      return dbPut("projets",np);
-    });
+  /* Points et photos d'abord, la fiche projet EN DERNIER : si le téléphone tue
+     la page en cours d'import, aucun projet à moitié vide n'apparaît dans la
+     liste — on relance simplement l'import. */
+  var total=(d.points||[]).length, faits=0;
+  var ch=Promise.resolve();
   (d.points||[]).forEach(function(pt){
     var id=uid();
     ch=ch.then(function(){
+      faits++;
+      if(total>6&&faits%5===0)toast("Reprise… "+faits+" / "+total,9000);
       return dbPut("points",{id:id,projetId:np.id,couche:pt.couche||"boites_derivation",
         numero:pt.numero||"?", x:+pt.x||0, y:+pt.y||0,
         lat:(pt.lat==null?null:+pt.lat), lon:(pt.lon==null?null:+pt.lon),
@@ -1515,6 +1566,14 @@ function reprendre(d,fichiers){
         });
       });
     });
+  });
+  ch=ch.then(function(){
+    return charger(d.projet.fond,(d.projet.fond&&d.projet.fond.type)||"image/png");
+  }).then(function(b){
+    if(b&&d.projet.fond)np.fond={blob:b,nom:d.projet.fond.nom||"plan",
+      type:d.projet.fond.type||"image/png",
+      largeur:d.projet.fond.largeur,hauteur:d.projet.fond.hauteur};
+    return dbPut("projets",np);
   });
   ch.then(function(){return chargerProjet(np.id);})
     .then(function(){toast("Relevé repris : "+np.nom,3500);fermerTout();allerVue("v-plan");})
@@ -1631,8 +1690,11 @@ function rendreProjets(){
 var cal=null;
 
 /* Lit des coordonnées écrites à la main ou collées depuis Google Earth / Maps.
-   Accepte le décimal (48.5123, 0.5512), les virgules décimales, et le
-   sexagésimal (48°30'44.4"N 0°33'4.4"E). */
+   Accepte le décimal (48.5123, 0.5512), les virgules décimales, le sexagésimal
+   (48°30'44.4"N 0°33'4.4"E) et les minutes décimales (48°30.74'N, avec ou sans
+   apostrophe). Le second nombre après le degré est TOUJOURS des minutes — jamais
+   des secondes seules : lire 30.74 comme des secondes décalerait de ~50 km sans
+   que rien ne le signale. */
 function nombreFr(s){return parseFloat(String(s).replace(",","."));}
 function bornerLatLon(lat,lon){
   if(!isFinite(lat)||!isFinite(lon))return null;
@@ -1642,10 +1704,12 @@ function bornerLatLon(lat,lon){
 function lireLatLon(txt){
   var t=String(txt||"").trim().toUpperCase().replace(/\s+/g," ");
   if(!t)return null;
-  var dms=/(\d+(?:[.,]\d+)?)\s*[°º]\s*(?:(\d+(?:[.,]\d+)?)\s*['′’]\s*)?(?:(\d+(?:[.,]\d+)?)\s*["″”]?\s*)?([NSEOW])/g;
+  var dms=/(\d+(?:[.,]\d+)?)\s*[°º]\s*(?:(\d+(?:[.,]\d+)?)\s*['′’]?\s*(?:(\d+(?:[.,]\d+)?)\s*["″”]?\s*)?)?([NSEOW])/g;
   var vus=[], m;
   while((m=dms.exec(t))){
-    var v=nombreFr(m[1])+(m[2]?nombreFr(m[2])/60:0)+(m[3]?nombreFr(m[3])/3600:0);
+    var mn=m[2]?nombreFr(m[2]):0, sc=m[3]?nombreFr(m[3]):0;
+    if(mn>=60||sc>=60)return null;      /* 48°75'… n'existe pas : mieux vaut refuser que deviner */
+    var v=nombreFr(m[1])+mn/60+sc/3600;
     var dir=m[4];
     if(dir==="S"||dir==="W"||dir==="O")v=-v;
     vus.push({v:v,estLat:(dir==="N"||dir==="S")});
@@ -1702,6 +1766,7 @@ function ecranCalage(){
   }else if(cal.etape===1||cal.etape===3){
     var n=(cal.etape===1)?1:2;
     var p=(n===1)?cal.p1:cal.p2;
+    if(!p){ cal.etape=0; ecranCalage(); return; }   /* jamais d'écran sur un point absent */
     if(cal.mode==="saisie"){ ecranSaisie(n,p); return; }
     b.innerHTML='<div class="etape"><h3>Point '+n+' — mesure GPS</h3>'+
       'Repère placé sur le plan en <b>'+Math.round(p.x)+' ; '+Math.round(p.y)+' px</b>.<br><br>'+
@@ -1842,6 +1907,8 @@ function ecranDetail(){
 }
 function pointerCalage(n){
   fermer("sh-calage");
+  allerVue("v-plan");   /* la barre de pose vit sur la vue plan : sans la bascule,
+                           lancé depuis les Réglages le flux paraissait mort */
   var dep=(n===1&&cal.p1)?{x:cal.p1.x,y:cal.p1.y}:((n===2&&cal.p2)?{x:cal.p2.x,y:cal.p2.y}:null);
   demarrerPose({
     etiquette:"point "+n, depart:dep,
@@ -1854,7 +1921,12 @@ function pointerCalage(n){
       if(n===1){cal.p1=o;cal.etape=1;}else{cal.p2=o;cal.etape=3;}
       ecranCalage(); ouvrir("sh-calage");
     },
-    onAnnul:function(){ cal.etape=(n===1)?0:3; ecranCalage(); ouvrir("sh-calage"); }
+    onAnnul:function(){
+      /* retomber sur un écran qui existe : celui du point s'il a déjà des
+         données, sinon l'accueil de l'assistant (sans perdre l'autre point) */
+      cal.etape=(n===1)?(cal.p1?1:0):(cal.p2?3:0);
+      ecranCalage(); ouvrir("sh-calage");
+    }
   });
 }
 function validerSaisie(n){
@@ -1870,7 +1942,12 @@ function capturerCalage(n){
   var z=$("cal-mesure");
   z.innerHTML='<b style="font-size:22px;color:#f5b301">5,0 s</b><br>Ne bougez pas…';
   qsa("#cal-bas button").forEach(function(b){b.disabled=true;});
+  var session=cal;   /* si l'assistant est fermé ou relancé pendant la mesure,
+                        le résultat tardif ne doit ni le ressusciter ni écraser
+                        un point ressaisi entre-temps */
+  function perime(){ return session!==cal || !$("sh-calage").classList.contains("on"); }
   capturerGPS(5,function(nb,reste,rejetes,motif,acc){
+    if(perime())return;
     var l1='<b style="font-size:22px;color:#f5b301">'+
       (reste>0?reste.toFixed(1)+" s":"patience…")+'</b>';
     var l2=nb?(nb+" mesure(s) retenue(s)"+(acc?(" — ± "+Math.round(acc)+" m"):""))
@@ -1879,7 +1956,9 @@ function capturerCalage(n){
           :(rejetes?('<br><small style="color:#6E8AA0">'+rejetes+' mesure(s) écartée(s)</small>'):'');
     z.innerHTML=l1+'<br>'+l2+l3;
   }).then(function(r){
+    if(perime())return;
     var p=(n===1)?cal.p1:cal.p2;
+    if(!p)return;
     p.lat=r.lat; p.lon=r.lon; p.acc=r.acc; p.n=r.n;
     z.innerHTML='<b class="ok">Point '+n+' mesuré</b><br>± '+r.acc.toFixed(0)+' m sur '+r.n+' mesures'+
       (r.rejetes?('<br><small style="color:#6E8AA0">'+r.rejetes+' mesure(s) écartée(s)</small>'):'');
@@ -1888,9 +1967,10 @@ function capturerCalage(n){
       cal.etape=2;
       z.innerHTML+='<br><br><b style="color:#f5b301">Rendez-vous maintenant au point 2,'+
         ' le plus loin possible.</b>';
-      setTimeout(function(){pointerCalage(2);},1800);
-    }else{ cal.etape=4; setTimeout(ecranCalage,900); }
+      setTimeout(function(){if(!perime())pointerCalage(2);},1800);
+    }else{ cal.etape=4; setTimeout(function(){if(!perime())ecranCalage();},900); }
   })["catch"](function(e){
+    if(perime())return;
     z.innerHTML='<b class="ko">'+esc(e.message)+'</b>';
     qsa("#cal-bas button").forEach(function(b){b.disabled=false;});
   });
@@ -2036,6 +2116,7 @@ function brancher(){
     b.addEventListener("click",function(){
       var c=b.dataset.close;
       if(c==="sh-fiche")enregistrerFiche(false);
+      if(c==="sh-calage"&&annulerCaptureGPS)annulerCaptureGPS();
       fermer(c);
     });
   });
@@ -2068,7 +2149,8 @@ function brancher(){
     }
     demarrerPose({etiquette:(S.projet.prefixe||"BD-")+pad3((S.projet.compteur||0)+1),
       depart:dep, texte:txt,
-      onOk:function(x,y){ nouveauPoint(x,y).then(function(p){ ouvrirFiche(p.id); }); }});
+      onOk:function(x,y){ nouveauPoint(x,y).then(function(p){ ouvrirFiche(p.id); })
+        ["catch"](function(e){toast("Boîte non enregistrée : "+e.message,6000);}); }});
   });
   $("b-pose-annul").addEventListener("click",function(){
     var f=pose&&pose.onAnnul; annulerPose(); if(f)f();
@@ -2096,7 +2178,8 @@ function brancher(){
     var p=null; for(var i=0;i<S.points.length;i++)if(S.points[i].id===fiche.id)p=S.points[i];
     if(!p)return;
     if(!confirm("Supprimer définitivement "+p.numero+" et ses photos ?"))return;
-    supprimerPoint(fiche.id).then(function(){fermer("sh-fiche");toast("Boîte supprimée");});
+    supprimerPoint(fiche.id).then(function(){fermer("sh-fiche");toast("Boîte supprimée");})
+      ["catch"](function(e){toast("Suppression impossible : "+e.message,5000);});
   });
   $("fi-photo").addEventListener("click",function(){$("f-photo").click();});
   $("fi-galerie").addEventListener("click",function(){$("f-galerie").click();});
@@ -2184,9 +2267,14 @@ function brancher(){
     ecranCalage(); ouvrir("sh-calage");
   });
   $("b-decaler").addEventListener("click",function(){
-    if(!confirm("Effacer le calage GPS ? Les boîtes déjà posées gardent leurs coordonnées."))return;
+    if(!confirm("Effacer le calage ?\nLes coordonnées GPS des boîtes seront effacées aussi"+
+      " (elles en découlent) et se recalculeront toutes au prochain calage."+
+      "\nLes positions sur le plan ne bougent pas."))return;
     S.projet.calage=null;
-    sauverProjet().then(function(){majReglages();majGPS();toast("Calage effacé");});
+    geo.lisse=null;
+    sauverProjet().then(function(){return recalculerLatLon(null);})
+      .then(function(){majReglages();majGPS();toast("Calage effacé");})
+      ["catch"](function(e){toast("Erreur : "+e.message,5000);});
   });
   $("cal-bas").addEventListener("click",function(e){
     var b=e.target.closest("[data-cal]"); if(!b)return;
@@ -2203,19 +2291,16 @@ function brancher(){
     else if(a==="recommencer"){cal={mode:null,etape:0,p1:null,p2:null,calcul:null};ecranCalage();}
     else if(a==="valider"){
       S.projet.calage=cal.calcul;
+      geo.lisse=null;
       sauverProjet().then(function(){
-        var pts=S.points.filter(function(p){return p.lat==null;});
-        var ch=Promise.resolve();
-        pts.forEach(function(p){
-          var ll=planVersLatLon(p.x,p.y,cal.calcul);
-          p.lat=ll.lat; p.lon=ll.lon; p.modifie=nowISO();
-          ch=ch.then(function(){return dbPut("points",p);});
-        });
-        return ch;
-      }).then(function(){
+        /* Les lat/lon d'une boîte ne sont jamais une mesure : toujours dérivées de
+           (x,y) via le calage courant. On recalcule donc TOUTES les boîtes — c'est
+           précisément ce qui répare un relevé fait sous un calage faux. */
+        return recalculerLatLon(cal.calcul);
+      }).then(function(n){
         fermer("sh-calage"); majReglages(); majGPS(); suivreGPS();
-        toast("Calage enregistré");
-      });
+        toast("Calage enregistré"+(n?(" — coordonnées des "+n+" boîtes recalculées"):""));
+      })["catch"](function(e){toast("Erreur : "+e.message,5000);});
     }
   });
   $("b-projets").addEventListener("click",function(){rendreProjets();ouvrir("sh-projets");});
@@ -2288,6 +2373,12 @@ function brancher(){
      aussi dès qu'elle passe en arrière-plan. */
   document.addEventListener("visibilitychange",function(){
     if(document.hidden&&$("sh-fiche").classList.contains("on"))enregistrerFiche(true);
+  });
+  /* dernier filet : aucune erreur asynchrone ne doit mourir en silence */
+  var derErr=0;
+  window.addEventListener("unhandledrejection",function(e){
+    var msg=(e.reason&&e.reason.message)||String(e.reason||"erreur inconnue");
+    if(Date.now()-derErr>4000){derErr=Date.now();toast("Erreur : "+msg,5000);}
   });
 }
 
