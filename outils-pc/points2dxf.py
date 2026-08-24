@@ -131,7 +131,7 @@ def main():
                     help="couleur AutoCAD du calque (defaut 1 = rouge)")
     ap.add_argument("--sans-texte", action="store_true", help="ne pas ecrire les numeros")
     ap.add_argument("--remplacer", action="store_true",
-                    help="vider le calque %s s'il existe deja" % CALQUE)
+                    help="vider les calques SC_ du releve s'ils existent deja")
     # calage manuel
     ap.add_argument("--echelle", type=float, help="pixels par unite DXF")
     ap.add_argument("--xmin", type=float, help="X du coin bas-gauche du fond, en unites DXF")
@@ -148,74 +148,108 @@ def main():
     rel = charger_releve(a.json)
     if rel.get("format") != "sc-carto":
         sys.exit("%s n'est pas un export SC Carto." % a.json)
-    points = [p for p in rel.get("points", [])
-              if p.get("couche", "boites_derivation") == "boites_derivation"]
-    autres = len(rel.get("points", [])) - len(points)
+    points = list(rel.get("points", []))
     if not points:
-        sys.exit("Aucune boite de derivation dans cet export.")
-    print("Releve : %s — %d boite(s)%s"
-          % (rel.get("projet", {}).get("nom", "?"), len(points),
-             (" (%d point(s) d'une autre couche ignore(s))" % autres) if autres else ""))
+        sys.exit("Aucun objet dans cet export.")
+    print("Releve : %s — %d objet(s)"
+          % (rel.get("projet", {}).get("nom", "?"), len(points)))
 
     echelle, xmin, ymin, hpx = charger_calage(a)
     print("Calage : 1 px = %.5f unite DXF, origine (%.3f ; %.3f), hauteur %d px"
           % (1.0 / echelle, xmin, ymin, hpx))
+
+    # metres -> unites du dessin, si le releve est cale GPS (v1.1 : dimensions en cm)
+    cal_gps = (rel.get("projet", {}) or {}).get("calage") or {}
+    m_par_px = cal_gps.get("echelle_m_par_px")
+    unites_par_m = (1.0 / (float(m_par_px) * echelle)) if m_par_px else None
 
     # ---- DXF -------------------------------------------------------------- #
     print("Lecture de %s ..." % a.dxf)
     doc = ouvrir(a.dxf)
     msp = doc.modelspace()
 
-    if CALQUE not in doc.layers:
-        doc.layers.add(CALQUE, color=a.couleur_calque)
-    elif a.remplacer:
-        vieux = [e for e in msp if e.dxf.layer == CALQUE]
-        for e in vieux:
-            msp.delete_entity(e)
-        print("Calque %s vide de ses %d entite(s) precedente(s)." % (CALQUE, len(vieux)))
+    def nom_calque(p):
+        couche = str(p.get("couche") or "objets")
+        propre = "".join(c if (c.isalnum() or c == "_") else "_" for c in couche.upper())
+        return "SC_" + (propre or "OBJETS")
 
-    # taille du symbole : par defaut ~0,4 % de la diagonale du releve, borne raisonnablement
+    calques = sorted(set(nom_calque(p) for p in points))
+    for cq in calques:
+        if cq not in doc.layers:
+            doc.layers.add(cq, color=a.couleur_calque)
+        elif a.remplacer:
+            vieux = [e for e in msp if e.dxf.layer == cq]
+            for e in vieux:
+                msp.delete_entity(e)
+            print("Calque %s vide de ses %d entite(s) precedente(s)." % (cq, len(vieux)))
+
+    # rayon de repli quand l'objet n'a pas de dimension (ou pas de calage GPS)
     if a.taille:
-        rayon = a.taille
+        rayon_defaut = a.taille
     else:
         xs = [p["x"] for p in points]
         ys = [p["y"] for p in points]
         diag_px = math.hypot(max(xs) - min(xs), max(ys) - min(ys)) or hpx
-        rayon = max(diag_px * 0.004 / echelle, 0.05)
-    hauteur_txt = rayon * 1.6
-    print("Symbole : rayon %.3f unite(s) DXF, texte %.3f" % (rayon, hauteur_txt))
+        rayon_defaut = max(diag_px * 0.004 / echelle, 0.05)
+    if unites_par_m:
+        print("Dimensions : reelles (1 m = %.4f unite(s) du dessin), repli %.3f"
+              % (unites_par_m, rayon_defaut))
+    else:
+        print("Dimensions : releve non cale GPS — symboles uniformes, rayon %.3f" % rayon_defaut)
 
-    # ---- dessin ----------------------------------------------------------- #
+    def rayon_de(p):
+        t_cm = p.get("taille_cm")
+        if a.taille:
+            return a.taille
+        if unites_par_m and t_cm:
+            return max(float(t_cm) / 100.0 * unites_par_m / 2.0, 0.01)
+        return rayon_defaut
+
+    # ---- dessin : la forme du releve est respectee ------------------------- #
+    def dessiner(p, x, y, r, attr):
+        forme = p.get("forme") or "rond"
+        if forme == "carre":
+            msp.add_lwpolyline([(x - r, y - r), (x + r, y - r), (x + r, y + r), (x - r, y + r)],
+                               close=True, dxfattribs=dict(attr))
+        elif forme == "triangle":
+            msp.add_lwpolyline([(x, y + r), (x + r * 0.866, y - r * 0.5), (x - r * 0.866, y - r * 0.5)],
+                               close=True, dxfattribs=dict(attr))
+        else:
+            msp.add_circle((x, y), r, dxfattribs=dict(attr))
+            msp.add_line((x - r, y), (x + r, y), dxfattribs=dict(attr))
+            msp.add_line((x, y - r), (x, y + r), dxfattribs=dict(attr))
+
     dehors = 0
+    par_calque = {}
     for p in points:
         x, y = px_vers_dxf(float(p["x"]), float(p["y"]), echelle, xmin, ymin, hpx)
-        attr = {"layer": CALQUE}
+        cq = nom_calque(p)
+        par_calque[cq] = par_calque.get(cq, 0) + 1
+        attr = {"layer": cq}
         if a.couleurs_statut:
             attr["color"] = COULEUR_STATUT.get(p.get("statut"), 7)
-
-        msp.add_circle((x, y), rayon, dxfattribs=dict(attr))
-        msp.add_line((x - rayon, y), (x + rayon, y), dxfattribs=dict(attr))
-        msp.add_line((x, y - rayon), (x, y + rayon), dxfattribs=dict(attr))
+        r = rayon_de(p)
+        dessiner(p, x, y, r, attr)
 
         if not a.sans_texte:
+            h_txt = max(r * 1.2, rayon_defaut * 1.2)
             t = msp.add_text(str(p.get("numero", "?")),
-                             dxfattribs=dict(attr, height=hauteur_txt))
-            t.set_placement((x + rayon * 1.4, y + rayon * 0.6))
+                             dxfattribs=dict(attr, height=h_txt))
+            t.set_placement((x + r * 1.4, y + r * 0.6))
 
         if float(p["x"]) < 0 or float(p["y"]) < 0 or float(p["y"]) > hpx:
             dehors += 1
 
     if dehors:
-        print("  Attention : %d boite(s) hors des limites du fond de plan." % dehors)
+        print("  Attention : %d objet(s) hors des limites du fond de plan." % dehors)
 
-    sortie = a.sortie or (os.path.splitext(a.dxf)[0] + "_boites.dxf")
+    sortie = a.sortie or (os.path.splitext(a.dxf)[0] + "_releve.dxf")
     doc.saveas(sortie)
 
     print("")
     print("  DXF produit : %s" % sortie)
-    print("  Calque      : %s (%d boites : %d cercles, %d traits, %d textes)"
-          % (CALQUE, len(points), len(points), len(points) * 2,
-             0 if a.sans_texte else len(points)))
+    for cq in calques:
+        print("  Calque %-28s : %d objet(s)" % (cq, par_calque.get(cq, 0)))
     repart = {}
     for p in points:
         repart[p.get("statut", "?")] = repart.get(p.get("statut", "?"), 0) + 1

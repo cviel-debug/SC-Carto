@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>SC Carto</title>
-<meta name="description" content="Cartographie terrain Sari-Concept — recensement de boîtes de dérivation">
+<meta name="description" content="Cartographie terrain Sari-Concept — relevé d'objets sur plan (boîtes, BAES, canalis…)">
 <meta name="theme-color" content="#0A1422">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="favicon.png">
@@ -114,22 +114,37 @@ nav .nb{position:absolute;top:7px;left:50%;margin-left:4px;min-width:21px;height
 #world{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform}
 #fond{display:block;max-width:none;pointer-events:none;-webkit-user-drag:none}
 #marqueurs{position:absolute;top:0;left:0;width:0;height:0}
-.mk{position:absolute;width:44px;height:44px;margin:-22px 0 0 -22px;transform:scale(var(--inv,1));
- transform-origin:50% 50%;display:flex;align-items:center;justify-content:center;touch-action:none}
-.mk i{width:30px;height:30px;border-radius:50%;border:3px solid #fff;display:block;position:relative;
- box-shadow:0 0 0 2px rgba(0,0,0,.6),0 3px 8px rgba(0,0,0,.5)}
-.mk i:after{content:"";position:absolute;inset:0;border-radius:50%;background:
- linear-gradient(rgba(0,0,0,0) 44%,rgba(0,0,0,.6) 44%,rgba(0,0,0,.6) 56%,rgba(0,0,0,0) 56%),
- linear-gradient(90deg,rgba(0,0,0,0) 44%,rgba(0,0,0,.6) 44%,rgba(0,0,0,.6) 56%,rgba(0,0,0,0) 56%)}
-.mk b{position:absolute;top:36px;left:50%;transform:translateX(-50%);white-space:nowrap;
+/* Marqueurs : la forme et la couleur viennent du TYPE d'objet, le statut est le
+   liseré. Deux régimes de taille :
+   - sans dimension (ou plan non calé) : taille d'écran constante, comme avant ;
+   - .reel : taille réelle en mètres — l'objet grossit avec le zoom comme le plan,
+     avec un plancher de 16 px d'écran pour rester visible et cliquable.
+   --invpx (posé par applyView) vaut 1 px d'écran exprimé en pixels du plan. */
+.mk{position:absolute;transform:translate(-50%,-50%);
+ width:calc(34*var(--invpx,1px));height:calc(34*var(--invpx,1px));
+ display:flex;align-items:center;justify-content:center;touch-action:none;--sc:#fff}
+.mk.reel{width:max(var(--w,0px),calc(16*var(--invpx,1px)));
+ height:max(var(--w,0px),calc(16*var(--invpx,1px)))}
+.mk:before{content:"";position:absolute;inset:calc(-12*var(--invpx,1px))} /* zone tactile élargie */
+.mk svg{width:100%;height:100%;display:block;overflow:visible;
+ fill:var(--tc,#3B6DBE);stroke:var(--sc);stroke-width:5;stroke-linejoin:round;
+ paint-order:stroke;filter:drop-shadow(0 0 1px rgba(0,0,0,.7))}
+.mk b{position:absolute;top:100%;left:50%;white-space:nowrap;
+ transform:translateX(-50%) scale(var(--inv,1));transform-origin:top center;
+ margin-top:calc(3*var(--invpx,1px));
  font-size:13px;font-weight:800;padding:2px 7px;border-radius:6px;background:rgba(10,20,34,.92);
  color:#fff;border:1px solid rgba(255,255,255,.35)}
 #plan.clair .mk b{background:rgba(255,255,255,.95);color:#0A1422;border-color:rgba(0,0,0,.5)}
-.mk.st-a i{background:var(--rouge)} .mk.st-i i{background:var(--orange)} .mk.st-t i{background:var(--vert)}
-.mk.sel i{border-color:var(--or);box-shadow:0 0 0 4px rgba(245,179,1,.6),0 3px 8px rgba(0,0,0,.5)}
+.mk.st-a{--sc:var(--rouge)} .mk.st-i{--sc:var(--orange)} .mk.st-t{--sc:var(--vert)}
+.mk.lbl-off b{display:none}
+.mk.sel svg{stroke:var(--or);filter:drop-shadow(0 0 calc(6*var(--invpx,1px)) rgba(245,179,1,.95))}
 .mk.fantome{z-index:5}
-.mk.fantome i{background:var(--or);border-color:#fff;animation:pulse 1.1s ease-in-out infinite}
-@keyframes pulse{50%{box-shadow:0 0 0 12px rgba(245,179,1,.32),0 3px 8px rgba(0,0,0,.5)}}
+.mk.fantome svg{fill:var(--or);stroke:#fff;animation:pulse 1.1s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.45}}
+/* aperçus de forme dans les listes et l'éditeur */
+.f-apercu{width:34px;height:34px;flex:0 0 auto}
+.f-apercu svg{width:100%;height:100%;fill:var(--tc,#3B6DBE);stroke:#fff;stroke-width:4;
+ stroke-linejoin:round;paint-order:stroke}
 #gps-acc{position:absolute;border-radius:50%;background:rgba(46,143,255,.18);
  border:1px solid rgba(120,180,255,.6);pointer-events:none}
 #gps-dot{position:absolute;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;
@@ -193,6 +208,21 @@ select{-webkit-appearance:none;appearance:none;
 .segs button[data-v=a_identifier].on{background:var(--rouge);border-color:var(--rouge);color:#fff}
 .segs button[data-v=identifiee].on{background:var(--orange);border-color:var(--orange);color:#0A1422}
 .segs button[data-v=traitee].on{background:var(--vert);border-color:var(--vert);color:#0A1422}
+/* choix de forme (rond / carré / triangle) */
+.segs button.on-forme{background:rgba(245,179,1,.18);border-color:var(--or);color:var(--tx)}
+.segs .f-apercu{margin:0 auto}
+/* palette de couleurs */
+.pal{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.pal button{aspect-ratio:1.6;border-radius:10px;border:3px solid rgba(255,255,255,.25)}
+.pal button.on{border-color:#fff;box-shadow:0 0 0 3px var(--or)}
+/* choix du type à la pose */
+.types-grille{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.types-grille button{min-height:82px;border-radius:var(--r);border:2px solid var(--bd2);
+ background:var(--bg3);display:flex;flex-direction:column;align-items:center;justify-content:center;
+ gap:6px;font-size:14.5px;font-weight:700;color:var(--tx);padding:8px;line-height:1.2}
+.types-grille button small{color:var(--tx3);font-size:12px;font-weight:600}
+/* ligne de type dans les réglages */
+.ligne .f-apercu{margin-right:2px}
 
 /* --------- Feuilles --------- */
 .sheet{position:fixed;inset:0;z-index:60;background:rgba(4,9,16,.74);display:none;align-items:flex-end}
@@ -294,7 +324,7 @@ select{-webkit-appearance:none;appearance:none;
   <path class="tr" pathLength="1" d="M516,400 V312 L476,272 V234" style="animation-delay:.8s"/>
  </svg>
  <img class="lg" id="boot-logo" alt="Sari Concept">
- <div class="t1">SC Carto <b>v1.0</b></div>
+ <div class="t1">SC Carto <b>v1.1</b></div>
  <div class="t2">Chargement en cours<span id="boot-dots"></span></div>
 </div>
 
@@ -302,7 +332,7 @@ select{-webkit-appearance:none;appearance:none;
 <div id="app">
  <header>
   <span class="marque">SC <b>Carto</b></span>
-  <span class="badge-v">v1.0</span>
+  <span class="badge-v">v1.1</span>
   <span class="site" id="hd-site">—</span>
  </header>
 
@@ -364,7 +394,7 @@ select{-webkit-appearance:none;appearance:none;
     <div class="rub">Sortir le relevé du téléphone</div>
     <div class="carte" style="border-left:5px solid var(--vert)">
      <p class="info" style="margin:0"><b style="color:var(--vert)">Rien à enregistrer :
-      c'est déjà fait.</b><br>Chaque boîte, chaque photo, chaque statut est écrit dans le
+      c'est déjà fait.</b><br>Chaque objet, chaque photo, chaque statut est écrit dans le
       téléphone au moment où vous le saisissez. Cet écran ne sert qu'à <b>transmettre</b>
       le relevé au PC ou au client.</p>
     </div>
@@ -398,16 +428,20 @@ select{-webkit-appearance:none;appearance:none;
     <div class="rub">Projet en cours</div>
     <div class="carte">
      <h3 id="rg-nom">—</h3>
-     <div class="kv"><b>Boîtes recensées</b><span id="rg-nb">0</span></div>
+     <div class="kv"><b>Objets recensés</b><span id="rg-nb">0</span></div>
      <div class="kv"><b>Fond de plan</b><span id="rg-fond">aucun</span></div>
      <div class="kv"><b>Calage GPS</b><span id="rg-calage">non calé</span></div>
      <div class="kv" style="border:0"><b>Créé le</b><span id="rg-cree">—</span></div>
     </div>
     <label class="champ"><span>Nom du site</span>
      <input type="text" id="rg-i-nom" placeholder="PALM Mortagne"></label>
-    <label class="champ"><span>Préfixe des numéros</span>
-     <input type="text" id="rg-i-prefixe" placeholder="BD-" autocapitalize="characters"></label>
-    <button class="btn plein or" id="b-rg-save">Enregistrer les réglages</button>
+    <button class="btn plein or" id="b-rg-save">Enregistrer le nom</button>
+
+    <div class="rub">Types d'objets</div>
+    <p class="info">Ce que l'on pose sur le plan : boîtes de dérivation, BAES, canalis,
+     points Q18… Chaque type a sa forme, sa couleur, sa dimension réelle et sa numérotation.</p>
+    <div id="rg-types"></div>
+    <button class="btn plein" id="b-nouveau-type">+ Nouveau type d'objet</button>
 
     <div class="rub">Fond de plan</div>
     <p class="info">Image PNG/JPG ou fichier SVG produit par <b>dxf2fond.py</b>. Le fichier reste dans le téléphone.</p>
@@ -447,7 +481,7 @@ select{-webkit-appearance:none;appearance:none;
     <button class="btn plein rouge" id="b-suppr-projet">Supprimer ce projet</button>
 
     <div class="pied">
-     <b>SC Carto v1.0</b><br>
+     <b>SC Carto v1.1</b><br>
      Développé par Sari-Concept — Agence de l'Orne<br>
      Toutes les données restent dans ce téléphone.
     </div>
@@ -475,6 +509,19 @@ select{-webkit-appearance:none;appearance:none;
   <button class="x" data-close="sh-fiche">✕</button></div>
  <div class="sh-body">
   <label class="champ"><span>Numéro</span><input type="text" id="fi-num"></label>
+  <label class="champ"><span>Type d'objet</span><select id="fi-type"></select></label>
+  <div id="fi-perso" class="hide">
+   <label class="champ"><span>Forme</span></label>
+   <div class="segs" id="fi-p-forme" style="margin:-10px 0 14px">
+    <button data-f="rond"><span class="f-apercu" style="--tc:#8A97A5"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="19.5"/></svg></span></button>
+    <button data-f="carre"><span class="f-apercu" style="--tc:#8A97A5"><svg viewBox="0 0 48 48"><rect x="6" y="6" width="36" height="36" rx="4"/></svg></span></button>
+    <button data-f="triangle"><span class="f-apercu" style="--tc:#8A97A5"><svg viewBox="0 0 48 48"><polygon points="24,4 44.5,42.5 3.5,42.5"/></svg></span></button>
+   </div>
+   <label class="champ"><span>Couleur</span></label>
+   <div class="pal" id="fi-p-couleur" style="margin:-10px 0 14px"></div>
+   <label class="champ"><span>Dimension (cm) — vide = taille d'écran</span>
+    <input type="number" id="fi-p-taille" min="1" max="10000" inputmode="numeric" placeholder="30"></label>
+  </div>
   <label class="champ"><span>Statut</span></label>
   <div class="segs" id="fi-statut" style="margin:-10px 0 18px">
    <button data-v="a_identifier">À identifier</button>
@@ -496,10 +543,10 @@ select{-webkit-appearance:none;appearance:none;
   <div class="rub">Repères</div>
   <div class="kv"><b>Position plan</b><span id="fi-xy">—</span></div>
   <div class="kv"><b>Coordonnées GPS</b><span id="fi-ll">—</span></div>
-  <div class="kv"><b>Créée le</b><span id="fi-date">—</span></div>
-  <div class="kv" style="border:0"><b>Couche</b><span>boites_derivation</span></div>
+  <div class="kv"><b>Créé le</b><span id="fi-date">—</span></div>
+  <div class="kv" style="border:0"><b>Couche</b><span id="fi-couche">—</span></div>
   <div style="height:18px"></div>
-  <button class="btn plein rouge" id="fi-suppr">Supprimer cette boîte</button>
+  <button class="btn plein rouge" id="fi-suppr">Supprimer cet objet</button>
  </div>
  <div class="sh-bas">
   <button class="btn or plein" id="fi-ok">Fermer</button>
@@ -510,6 +557,36 @@ select{-webkit-appearance:none;appearance:none;
  <div class="sh-top"><h2>Projets</h2><button class="x" data-close="sh-projets">✕</button></div>
  <div class="sh-body" id="pr-liste"></div>
  <div class="sh-bas"><button class="btn or plein" id="b-nouveau-projet">+ Nouveau projet</button></div>
+</div></div>
+
+<div class="sheet" id="sh-type"><div>
+ <div class="sh-top"><h2>Poser quoi ?</h2><button class="x" data-close="sh-type">✕</button></div>
+ <div class="sh-body"><div class="types-grille" id="ty-grille"></div></div>
+</div></div>
+
+<div class="sheet" id="sh-typed"><div>
+ <div class="sh-top"><h2 id="td-titre">Type d'objet</h2><button class="x" data-close="sh-typed">✕</button></div>
+ <div class="sh-body">
+  <label class="champ"><span>Nom</span>
+   <input type="text" id="td-nom" placeholder="BAES, Canalis, Point Q18…"></label>
+  <label class="champ"><span>Forme</span></label>
+  <div class="segs" id="td-forme" style="margin:-10px 0 16px">
+   <button data-f="rond"><span class="f-apercu" style="--tc:#8A97A5"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="19.5"/></svg></span></button>
+   <button data-f="carre"><span class="f-apercu" style="--tc:#8A97A5"><svg viewBox="0 0 48 48"><rect x="6" y="6" width="36" height="36" rx="4"/></svg></span></button>
+   <button data-f="triangle"><span class="f-apercu" style="--tc:#8A97A5"><svg viewBox="0 0 48 48"><polygon points="24,4 44.5,42.5 3.5,42.5"/></svg></span></button>
+  </div>
+  <label class="champ"><span>Couleur</span></label>
+  <div class="pal" id="td-couleur" style="margin:-10px 0 16px"></div>
+  <label class="champ"><span>Dimension réelle (cm) — vide = taille d'écran constante</span>
+   <input type="number" id="td-taille" min="1" max="10000" inputmode="numeric" placeholder="30"></label>
+  <label class="champ"><span>Préfixe de numérotation</span>
+   <input type="text" id="td-prefixe" placeholder="BAES-" autocapitalize="characters"></label>
+  <div class="sw" id="td-perso"><div class="lb">Type « personnalisé »
+    <small>Forme, couleur et dimension se règlent objet par objet, dans la fiche.</small></div><i></i></div>
+  <div style="height:14px"></div>
+  <button class="btn plein rouge hide" id="td-suppr">Supprimer ce type</button>
+ </div>
+ <div class="sh-bas"><button class="btn or plein" id="td-ok">Enregistrer</button></div>
 </div></div>
 
 <div class="sheet" id="sh-calage"><div>
@@ -528,7 +605,12 @@ select{-webkit-appearance:none;appearance:none;
  <div class="sh-top"><h2>Mode d'emploi</h2><button class="x" data-close="sh-aide">✕</button></div>
  <div class="sh-body">
   <div class="etape"><h3>1. Le projet</h3>Un projet = un site. Donnez-lui le nom du client
-   (« PALM Mortagne »). Le préfixe des numéros est réglable : BD- donne BD-001, BD-002…</div>
+   (« PALM Mortagne »).</div>
+  <div class="etape"><h3>1 bis. Les types d'objets</h3>Dans les Réglages, définissez ce que
+   vous allez poser : boîtes de dérivation, BAES, canalis, points Q18… Chaque type a sa
+   forme, sa couleur, sa <b>dimension réelle en centimètres</b> et son préfixe de
+   numérotation (BD- donne BD-001, BD-002…). Sur un plan calé, un objet est dessiné à sa
+   taille réelle : il grossit avec le zoom, et en dézoomant le plan reste lisible.</div>
   <div class="etape"><h3>2. Le fond de plan</h3>Importez le plan depuis le téléphone (PNG, JPG ou SVG).
    Un doigt pour déplacer, deux doigts pour zoomer.</div>
   <div class="etape"><h3>3. Le calage (facultatif)</h3>Il sert uniquement à afficher votre position
@@ -541,7 +623,7 @@ select{-webkit-appearance:none;appearance:none;
    la même position et le calage est faux.<br><br>
    Dans les deux cas, l'appli annonce la taille qu'aurait votre plan. Si ce n'est pas la
    bonne, n'enregistrez pas.</div>
-  <div class="etape"><h3>4. Poser une boîte</h3>Bouton <b>+</b>. Le repère apparaît sur votre position
+  <div class="etape"><h3>4. Poser un objet</h3>Bouton <b>+</b>. Le repère apparaît sur votre position
    GPS si elle est connue, sinon au centre de l'écran. Faites-le glisser au bon endroit, validez,
    remplissez la fiche : statut, photos, note.</div>
   <div class="etape"><h3>5. Les statuts</h3>
@@ -599,12 +681,12 @@ select{-webkit-appearance:none;appearance:none;
 
 <script>
 /* =========================================================================
-   SC Carto v1.0 — Sari-Concept, agence de l'Orne
+   SC Carto v1.1 — Sari-Concept, agence de l'Orne
    PWA autonome : aucune dépendance réseau, aucune donnée ne quitte l'appareil.
    ========================================================================= */
 (function(){
 "use strict";
-var VERSION="1.0";
+var VERSION="1.1";
 var LOGO="data:image/png;base64,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";
 
 /* ---------------------------------------------------------------- outils */
@@ -693,10 +775,21 @@ var planEl,world,fondImg,mkBox;
 var view={x:0,y:0,z:1}, FW=0, FH=0, fondURL=null;
 var ZMIN=0.02, ZMAX=24;
 
+var lblT=null;
 function applyView(){
   world.style.transform="translate("+view.x+"px,"+view.y+"px) scale("+view.z+")";
   world.style.setProperty("--inv",String(1/view.z));
+  world.style.setProperty("--invpx",(1/view.z)+"px");
   majCercleGPS();
+  /* les étiquettes des objets à taille réelle disparaissent quand l'objet devient
+     tout petit à l'écran — c'est ce qui rend le plan lisible en dézoom */
+  clearTimeout(lblT); lblT=setTimeout(majEtiquettes,120);
+}
+function majEtiquettes(){
+  qsa(".mk.reel",mkBox).forEach(function(m){
+    var w=parseFloat(m.style.getPropertyValue("--w"))||0;
+    m.classList.toggle("lbl-off", w*view.z<24);
+  });
 }
 function ecranVersPlan(sx,sy){
   var r=planEl.getBoundingClientRect();
@@ -763,15 +856,67 @@ function lireFond(file){
   });
 }
 
+/* ---- types d'objets ----
+   Chaque objet posé appartient à un type (BAES, boîte de dérivation, canalis…)
+   qui fixe sa forme, sa couleur, sa dimension réelle et sa numérotation.
+   Le type « perso:true » laisse régler l'apparence objet par objet. */
+var PALETTE=["#3B6DBE","#f5b301","#25C05A","#E5484D","#FF9C2E","#9B59D0","#2AB8C5","#8A97A5"];
+function coucheDe(nom){
+  return (assainir(nom).toLowerCase()||"objets");
+}
+function typeDefaut(prefixe,compteur){
+  return {id:uid(),nom:"Boîte de dérivation",forme:"rond",couleur:"#3B6DBE",taille_cm:30,
+          prefixe:prefixe||"BD-",compteur:compteur||0,couche:"boites_derivation",perso:false};
+}
+function typeDe(p){
+  var l=(S.projet&&S.projet.types)||[];
+  for(var i=0;i<l.length;i++) if(l[i].id===p.typeId) return l[i];
+  return l[0]||typeDefaut();
+}
+function typeParId(id){
+  var l=(S.projet&&S.projet.types)||[];
+  for(var i=0;i<l.length;i++) if(l[i].id===id) return l[i];
+  return null;
+}
+/* apparence effective d'un point : celle du type, ou ses réglages perso */
+function apparence(p){
+  var t=typeDe(p);
+  if(t.perso&&p.perso)return {forme:p.perso.forme||"rond",couleur:p.perso.couleur||"#f5b301",
+                              taille_cm:p.perso.taille_cm||null};
+  return {forme:t.forme,couleur:t.couleur,taille_cm:t.taille_cm};
+}
+function svgForme(f){
+  var d=(f==="carre")?'<rect x="6" y="6" width="36" height="36" rx="4"/>'
+      :(f==="triangle")?'<polygon points="24,4 44.5,42.5 3.5,42.5"/>'
+      :'<circle cx="24" cy="24" r="19.5"/>';
+  return '<svg viewBox="0 0 48 48" aria-hidden="true">'+d+"</svg>";
+}
+function apercuHTML(forme,couleur){
+  return '<span class="f-apercu" style="--tc:'+esc(couleur)+'">'+svgForme(forme)+"</span>";
+}
+/* dimension réelle → pixels du plan (0 = pas de dimension exploitable) */
+function tailleWorldPx(taille_cm){
+  var c=cale();
+  if(!c||!taille_cm||!(taille_cm>0))return 0;
+  return (taille_cm/100)/c.echelle_m_par_px;
+}
+function fmtTaille(cm){
+  if(!cm)return "taille d'écran";
+  return cm<100?(cm+" cm"):((cm/100).toLocaleString("fr-FR")+" m");
+}
+
 /* ---- marqueurs ---- */
 function dessinerMarqueurs(){
   var h="";
   for(var i=0;i<S.points.length;i++){
-    var p=S.points[i];
-    h+='<div class="mk '+stCls(p.statut)+'" data-id="'+esc(p.id)+'" style="left:'+p.x+'px;top:'+p.y+'px">'+
-       '<i></i><b>'+esc(p.numero)+'</b></div>';
+    var p=S.points[i], a=apparence(p);
+    var w=tailleWorldPx(a.taille_cm);
+    h+='<div class="mk '+stCls(p.statut)+(w?" reel":"")+'" data-id="'+esc(p.id)+'"'+
+       ' style="left:'+p.x+'px;top:'+p.y+'px;--tc:'+esc(a.couleur)+(w?(";--w:"+w+"px"):"")+'">'+
+       svgForme(a.forme)+"<b>"+esc(p.numero)+"</b></div>";
   }
   mkBox.innerHTML=h;
+  majEtiquettes();
 }
 function surlignerMarqueur(id){
   qsa(".mk.sel",mkBox).forEach(function(e){e.classList.remove("sel");});
@@ -841,7 +986,8 @@ function demarrerPose(opts){
   var d=opts.depart||ecranVersPlan(r.left+r.width/2,r.top+r.height/2);
   pose={x:clamp(d.x,0,FW),y:clamp(d.y,0,FH),onOk:opts.onOk,onAnnul:opts.onAnnul};
   var g=document.createElement("div");
-  g.className="mk fantome"; g.id="fantome"; g.innerHTML="<i></i><b>"+esc(opts.etiquette||"nouveau")+"</b>";
+  g.className="mk fantome"; g.id="fantome";
+  g.innerHTML=svgForme(opts.forme||"rond")+"<b>"+esc(opts.etiquette||"nouveau")+"</b>";
   mkBox.appendChild(g);
   pose.el=g; placerFantome();
   var dr=null;
@@ -1060,7 +1206,7 @@ function capturerGPS(sec,onTick){
 
 /* ========================= PROJETS ========================= */
 function projetVide(nom){
-  return {id:uid(),nom:nom||"Nouveau site",prefixe:"BD-",compteur:0,couche:"boites_derivation",
+  return {id:uid(),nom:nom||"Nouveau site",types:[typeDefaut()],dernierType:null,
           fond:null,calage:null,planClair:false,cree:nowISO(),modifie:nowISO()};
 }
 function sauverProjet(){
@@ -1070,6 +1216,12 @@ function sauverProjet(){
 function chargerProjet(id){
   return dbGet("projets",id).then(function(p){
     if(!p)throw new Error("Projet introuvable");
+    /* migration v1.0 → v1.1 : le préfixe/compteur du projet devient un type
+       « Boîte de dérivation », premier du catalogue */
+    if(!p.types||!p.types.length){
+      p.types=[typeDefaut(p.prefixe,p.compteur)];
+      dbPut("projets",p);
+    }
     S.projet=p;
     S.ui.dernier=p.id; dbPut("reglages",S.ui);
     return dbPar("points","projetId",p.id);
@@ -1097,17 +1249,21 @@ function compterPhotos(){
   });
 }
 
-/* ========================= FICHE BOÎTE ========================= */
+/* ========================= FICHE OBJET ========================= */
 var fiche={id:null,statut:"a_identifier",urls:[]};
-function nouveauPoint(x,y){
+function nouveauPoint(x,y,type){
+  type=type||(S.projet.types&&S.projet.types[0])||typeDefaut();
   var c=cale(), ll=c?planVersLatLon(x,y,c):null;
-  var n=(S.projet.compteur||0)+1;
-  var p={id:uid(),projetId:S.projet.id,couche:"boites_derivation",
-         numero:(S.projet.prefixe||"BD-")+pad3(n),
+  var n=(type.compteur||0)+1;
+  var p={id:uid(),projetId:S.projet.id,typeId:type.id,couche:type.couche||"objets",
+         numero:(type.prefixe||"OBJ-")+pad3(n),
          x:Math.round(x*10)/10, y:Math.round(y*10)/10,
          lat:ll?ll.lat:null, lon:ll?ll.lon:null,
          statut:"a_identifier", note:"", cree:nowISO(), modifie:nowISO()};
-  S.projet.compteur=n;
+  if(type.perso)p.perso={forme:type.forme||"rond",couleur:type.couleur||"#f5b301",
+                         taille_cm:type.taille_cm||null};
+  type.compteur=n;
+  S.projet.dernierType=type.id;
   return dbPut("points",p).then(sauverProjet).then(function(){
     S.points.push(p); trierPointsInternes(); dessinerMarqueurs(); rendreListe();
     majReglages(); majRappel();
@@ -1123,13 +1279,32 @@ function ouvrirFiche(id){
   $("fi-titre").textContent=p.numero;
   $("fi-num").value=p.numero;
   $("fi-note").value=p.note||"";
+  var t=typeDe(p);
+  $("fi-type").innerHTML=(S.projet.types||[]).map(function(x){
+    return '<option value="'+esc(x.id)+'"'+(x.id===t.id?" selected":"")+">"+esc(x.nom)+"</option>";
+  }).join("");
+  majFichePerso(p,t);
   qsa("#fi-statut button").forEach(function(b){b.classList.toggle("on",b.dataset.v===p.statut);});
   $("fi-xy").textContent=Math.round(p.x)+" ; "+Math.round(p.y)+" px";
   $("fi-ll").textContent=(p.lat!=null)?(p.lat.toFixed(6)+" ; "+p.lon.toFixed(6)):"non calé";
   $("fi-date").textContent=fmtDate(p.cree);
+  $("fi-couche").textContent=t.couche||"objets";
   surlignerMarqueur(id);
   rendreGalerie();
   ouvrir("sh-fiche");
+}
+/* le bloc « apparence perso » n'apparaît que pour un objet d'un type personnalisé */
+function majFichePerso(p,t){
+  var perso=!!(t&&t.perso);
+  $("fi-perso").classList.toggle("hide",!perso);
+  if(!perso)return;
+  var a=p.perso||{forme:"rond",couleur:"#f5b301",taille_cm:null};
+  qsa("#fi-p-forme button").forEach(function(b){
+    b.classList.toggle("on-forme",b.dataset.f===(a.forme||"rond"));});
+  $("fi-p-couleur").innerHTML=PALETTE.map(function(c){
+    return '<button data-c="'+c+'" style="background:'+c+'"'+
+      ((a.couleur===c)?' class="on"':"")+"></button>";}).join("");
+  $("fi-p-taille").value=a.taille_cm||"";
 }
 function rendreGalerie(){
   fiche.urls.forEach(function(u){try{URL.revokeObjectURL(u);}catch(e){}});
@@ -1198,6 +1373,20 @@ function enregistrerFiche(leger){
   if(!p)return Promise.resolve();
   var num=($("fi-num").value||"").trim()||p.numero;
   p.numero=num; p.note=$("fi-note").value||""; p.statut=fiche.statut; p.modifie=nowISO();
+  var sel=$("fi-type");
+  if(sel&&sel.value){
+    var t=typeParId(sel.value);
+    if(t){
+      p.typeId=t.id; p.couche=t.couche||"objets";
+      if(t.perso){
+        var f=(qsa("#fi-p-forme button.on-forme")[0]||{}).dataset;
+        var c=(qsa("#fi-p-couleur button.on")[0]||{}).dataset;
+        var tl=parseFloat($("fi-p-taille").value);
+        p.perso={forme:(f&&f.f)||"rond", couleur:(c&&c.c)||"#f5b301",
+                 taille_cm:(tl>0?tl:null)};
+      }else delete p.perso;
+    }
+  }
   return dbPut("points",p).then(function(){
     if(!leger){ trierPointsInternes(); dessinerMarqueurs(); rendreListe(); majRappel(); }
   });
@@ -1232,7 +1421,9 @@ function rendreListe(){
   var tri=$("tri").value;
   var l=S.points.slice();
   if(q)l=l.filter(function(p){
-    return String(p.numero).toLowerCase().indexOf(q)>=0 || String(p.note||"").toLowerCase().indexOf(q)>=0;});
+    return String(p.numero).toLowerCase().indexOf(q)>=0 ||
+           String(p.note||"").toLowerCase().indexOf(q)>=0 ||
+           String(typeDe(p).nom||"").toLowerCase().indexOf(q)>=0;});
   var ordreSt={a_identifier:0,identifiee:1,traitee:2};
   l.sort(function(a,b){
     if(tri==="statut"){var d=(ordreSt[a.statut]||0)-(ordreSt[b.statut]||0); if(d)return d;}
@@ -1240,7 +1431,7 @@ function rendreListe(){
     return String(a.numero).localeCompare(String(b.numero),"fr",{numeric:true});
   });
   if(!S.points.length){
-    box.innerHTML='<div class="vide">Aucune boîte relevée.<br>Allez sur le plan et appuyez sur <b>+</b>.</div>';
+    box.innerHTML='<div class="vide">Aucun objet relevé.<br>Allez sur le plan et appuyez sur <b>+</b>.</div>';
     return;
   }
   if(!l.length){box.innerHTML='<div class="vide">Aucun résultat pour « '+esc(q)+' ».</div>';return;}
@@ -1248,14 +1439,17 @@ function rendreListe(){
   S.points.forEach(function(p){ if(p.statut==="traitee")nt++; else if(p.statut==="identifiee")ni++; else na++; });
   var h='<div class="carte" style="display:flex;gap:14px;justify-content:space-around;text-align:center">'+
     '<div><div style="font-size:26px;font-weight:800;color:#E5484D">'+na+'</div><small>à identifier</small></div>'+
-    '<div><div style="font-size:26px;font-weight:800;color:#FF9C2E">'+ni+'</div><small>identifiées</small></div>'+
-    '<div><div style="font-size:26px;font-weight:800;color:#25C05A">'+nt+'</div><small>traitées</small></div>'+
+    '<div><div style="font-size:26px;font-weight:800;color:#FF9C2E">'+ni+'</div><small>identifiés</small></div>'+
+    '<div><div style="font-size:26px;font-weight:800;color:#25C05A">'+nt+'</div><small>traités</small></div>'+
     '</div>';
+  var plusieursTypes=(S.projet.types||[]).length>1;
   l.forEach(function(p){
-    var np=S.nbPhotos[p.id]||0;
+    var np=S.nbPhotos[p.id]||0, a=apparence(p), t=typeDe(p);
     h+='<div class="ligne" data-fiche="'+esc(p.id)+'">'+
+       apercuHTML(a.forme,a.couleur)+
        '<span class="pastille '+stCls(p.statut)+'"></span>'+
-       '<span class="txt"><b>'+esc(p.numero)+'</b><small>'+stNom(p.statut)+
+       '<span class="txt"><b>'+esc(p.numero)+'</b><small>'+
+       (plusieursTypes?(esc(t.nom)+" · "):"")+stNom(p.statut)+
        (np?(" · "+np+" photo"+(np>1?"s":"")):"")+
        (p.note?(" · "+esc(p.note)):"")+'</small></span>'+
        '<button class="mini" data-centrer="'+esc(p.id)+'" title="Centrer sur le plan">'+
@@ -1356,10 +1550,10 @@ function numerosEnDouble(){
   return Object.keys(doubles);
 }
 function construireCSV(par){
-  var l=["Numero;Statut;Note;X_plan_px;Y_plan_px;Latitude;Longitude;Date;Photos"];
+  var l=["Numero;Type;Statut;Note;X_plan_px;Y_plan_px;Latitude;Longitude;Date;Photos"];
   S.points.forEach(function(p){
     var ph=(par[p.id]||[]).map(function(x){return x.nom;}).join(" | ");
-    l.push([csvVal(p.numero),csvVal(stNom(p.statut)),csvVal(p.note),
+    l.push([csvVal(p.numero),csvVal(typeDe(p).nom),csvVal(stNom(p.statut)),csvVal(p.note),
             csvVal(Math.round(p.x*10)/10),csvVal(Math.round(p.y*10)/10),
             csvVal(p.lat!=null?p.lat.toFixed(7):""),csvVal(p.lon!=null?p.lon.toFixed(7):""),
             csvVal(fmtDate(p.cree)),csvVal(ph)].join(";"));
@@ -1430,13 +1624,21 @@ function exporterReleve(){
       });
     });
     return ch.then(function(){
-      var rec={format:"sc-carto",version:2,application:"SC Carto v"+VERSION,exporte:nowISO(),
-        projet:{id:pr.id,nom:pr.nom,prefixe:pr.prefixe,compteur:pr.compteur,
+      var rec={format:"sc-carto",version:3,application:"SC Carto v"+VERSION,exporte:nowISO(),
+        projet:{id:pr.id,nom:pr.nom,
                 cree:pr.cree,modifie:pr.modifie,calage:pr.calage||null,
+                types:(pr.types||[]).map(function(t){
+                  return {id:t.id,nom:t.nom,forme:t.forme,couleur:t.couleur,
+                          taille_cm:t.taille_cm||null,prefixe:t.prefixe,
+                          compteur:t.compteur||0,couche:t.couche,perso:!!t.perso};
+                }),
                 fond:pr.fond?{nom:pr.fond.nom,type:pr.fond.type,largeur:pr.fond.largeur,
                               hauteur:pr.fond.hauteur,fichier:nomFond}:null},
         points:S.points.map(function(pt){
-          return {id:pt.id,couche:pt.couche||"boites_derivation",numero:pt.numero,
+          var t=typeDe(pt), a=apparence(pt);
+          return {id:pt.id,typeId:t.id,type:t.nom,couche:t.couche||pt.couche||"objets",
+            forme:a.forme,couleur:a.couleur,taille_cm:a.taille_cm||null,
+            perso:pt.perso||null,numero:pt.numero,
             x:Math.round(pt.x*100)/100, y:Math.round(pt.y*100)/100,
             lat:pt.lat!=null?pt.lat:null, lon:pt.lon!=null?pt.lon:null,
             statut:pt.statut, note:pt.note||"", cree:pt.cree, modifie:pt.modifie,
@@ -1523,11 +1725,22 @@ function restaurer(file){
 function reprendre(d,zipFile,fichiers){
   if(!d||d.format!=="sc-carto"||!d.projet){toast("Ce n'est pas un relevé SC Carto",4000);return;}
   if(!confirm("Reprendre le projet « "+(d.projet.nom||"?")+" » ?\n"+
-    ((d.points||[]).length)+" boîte(s). Il sera ajouté à côté des projets existants."))return;
+    ((d.points||[]).length)+" objet(s). Il sera ajouté à côté des projets existants."))return;
   toast("Reprise en cours…",9000);
   var np=projetVide(d.projet.nom||"Projet repris");
-  np.prefixe=d.projet.prefixe||"BD-"; np.compteur=d.projet.compteur||0;
   np.cree=d.projet.cree||nowISO(); np.calage=d.projet.calage||null;
+  /* v3 : le catalogue de types voyage avec le relevé ;
+     v1/v2 : un type « Boîte de dérivation » reprend le préfixe/compteur d'époque */
+  if(d.projet.types&&d.projet.types.length){
+    np.types=d.projet.types.map(function(t){
+      return {id:t.id||uid(),nom:t.nom||"Objet",forme:t.forme||"rond",
+              couleur:t.couleur||"#3B6DBE",taille_cm:t.taille_cm||null,
+              prefixe:t.prefixe||"OBJ-",compteur:t.compteur||0,
+              couche:t.couche||coucheDe(t.nom||"objets"),perso:!!t.perso};
+    });
+  }else{
+    np.types=[typeDefaut(d.projet.prefixe,d.projet.compteur)];
+  }
 
   /* v2 : le fichier est dans le ZIP (lu à la demande) ; v1 : encodé dans le JSON */
   function charger(ref,type){
@@ -1551,11 +1764,15 @@ function reprendre(d,zipFile,fichiers){
     ch=ch.then(function(){
       faits++;
       if(total>6&&faits%5===0)toast("Reprise… "+faits+" / "+total,9000);
-      return dbPut("points",{id:id,projetId:np.id,couche:pt.couche||"boites_derivation",
+      var rec={id:id,projetId:np.id,couche:pt.couche||"boites_derivation",
+        typeId:pt.typeId||np.types[0].id,
         numero:pt.numero||"?", x:+pt.x||0, y:+pt.y||0,
         lat:(pt.lat==null?null:+pt.lat), lon:(pt.lon==null?null:+pt.lon),
         statut:ST[pt.statut]?pt.statut:"a_identifier", note:pt.note||"",
-        cree:pt.cree||nowISO(), modifie:pt.modifie||nowISO()});
+        cree:pt.cree||nowISO(), modifie:pt.modifie||nowISO()};
+      if(pt.perso)rec.perso={forme:pt.perso.forme||"rond",
+        couleur:pt.perso.couleur||"#f5b301",taille_cm:pt.perso.taille_cm||null};
+      return dbPut("points",rec);
     });
     (pt.photos||[]).forEach(function(f,i){
       ch=ch.then(function(){
@@ -1615,14 +1832,14 @@ function majRappel(){
   var masqueRecent=(Date.now()-rappelMasqueA)<3600000 && n<rappelMasqueN+5;
   var r=$("rappel");
   if(merite&&!masqueRecent){
-    $("rappel-txt").innerHTML="<b>"+n+" boîte"+(n>1?"s":"")+"</b> non transmise"+(n>1?"s":"")+
+    $("rappel-txt").innerHTML="<b>"+n+" objet"+(n>1?"s":"")+"</b> non transmis"+(n>1?"s":"")+
       (age?(" — dernier envoi il y a "+age):" — jamais envoyé");
     r.classList.remove("hide"); $("plan").classList.add("avec-rappel");
   }else{ r.classList.add("hide"); $("plan").classList.remove("avec-rappel"); }
 
   var e=$("exp-etat");
   if(e)e.innerHTML=(n>0)
-    ?('<h3 style="color:var(--or)">'+n+' boîte'+(n>1?"s":"")+' à transmettre</h3>'+
+    ?('<h3 style="color:var(--or)">'+n+' objet'+(n>1?"s":"")+' à transmettre</h3>'+
       '<p class="info" style="margin:0">'+(age?("Dernier envoi il y a "+age+"."):"Ce relevé n'a jamais été envoyé.")+
       (n>1?" Elles sont bien enregistrées":" Elle est bien enregistrée")+
       ' dans le téléphone — il manque juste la copie au PC.</p>')
@@ -1637,7 +1854,7 @@ function marquerTransmis(){
 }
 function verifPoints(){
   if(!S.projet){toast("Aucun projet");return false;}
-  if(!S.points.length){toast("Aucune boîte à exporter");return false;}
+  if(!S.points.length){toast("Aucun objet à exporter");return false;}
   return true;
 }
 
@@ -1664,11 +1881,70 @@ function majReglages(){
     :"non calé";
   $("rg-cree").textContent=fmtDate(p.cree);
   $("rg-i-nom").value=p.nom;
-  $("rg-i-prefixe").value=p.prefixe||"BD-";
   $("b-decaler").classList.toggle("hide",!c);
   $("b-detail-calage").classList.toggle("hide",!c);
   $("sw-splash").classList.toggle("on",!!S.ui.splash);
   $("sw-gps").classList.toggle("on",!!S.ui.gpsSuivi);
+  rendreTypes();
+}
+function nbObjetsDuType(id){
+  var n=0;
+  S.points.forEach(function(p){ if((p.typeId||((S.projet.types||[])[0]||{}).id)===id)n++; });
+  return n;
+}
+function rendreTypes(){
+  var box=$("rg-types"); if(!box)return;
+  box.innerHTML=(S.projet.types||[]).map(function(t){
+    var n=nbObjetsDuType(t.id);
+    return '<div class="ligne" data-edit-type="'+esc(t.id)+'">'+
+      apercuHTML(t.forme,t.couleur)+
+      '<span class="txt"><b>'+esc(t.nom)+(t.perso?' <small style="color:var(--or)">perso</small>':"")+'</b>'+
+      '<small>'+esc(t.prefixe||"")+"… · "+fmtTaille(t.taille_cm)+" · "+n+" objet"+(n>1?"s":"")+
+      '</small></span>'+
+      '<button class="mini" title="Modifier">'+
+      '<svg viewBox="0 0 24 24"><path d="M4 20h4l10-10-4-4L4 16zM14 6l4 4"/></svg></button></div>';
+  }).join("");
+}
+/* ---- éditeur de type ---- */
+var typeEdit=null;
+function ouvrirEditeurType(t){
+  typeEdit=t?t.id:null;
+  var d=t||{nom:"",forme:"rond",couleur:PALETTE[0],taille_cm:null,prefixe:"",perso:false};
+  $("td-titre").textContent=t?("Type : "+t.nom):"Nouveau type d'objet";
+  $("td-nom").value=d.nom||"";
+  qsa("#td-forme button").forEach(function(b){
+    b.classList.toggle("on-forme",b.dataset.f===(d.forme||"rond"));});
+  $("td-couleur").innerHTML=PALETTE.map(function(c){
+    return '<button data-c="'+c+'" style="background:'+c+'"'+
+      ((d.couleur===c)?' class="on"':"")+"></button>";}).join("");
+  $("td-taille").value=d.taille_cm||"";
+  $("td-prefixe").value=d.prefixe||"";
+  $("td-perso").classList.toggle("on",!!d.perso);
+  $("td-suppr").classList.toggle("hide",!t||(S.projet.types||[]).length<2);
+  ouvrir("sh-typed");
+}
+function enregistrerType(){
+  var nom=($("td-nom").value||"").trim();
+  if(!nom){toast("Donnez un nom au type");return;}
+  var forme=(qsa("#td-forme button.on-forme")[0]||{}).dataset;
+  var coul=(qsa("#td-couleur button.on")[0]||{}).dataset;
+  var taille=parseFloat($("td-taille").value);
+  var prefixe=($("td-prefixe").value||"").trim();
+  if(!prefixe)prefixe=assainir(nom).slice(0,4).toUpperCase()+"-";
+  var t=typeEdit?typeParId(typeEdit):null;
+  if(!t){
+    t={id:uid(),compteur:0};
+    S.projet.types=(S.projet.types||[]);
+    S.projet.types.push(t);
+  }
+  t.nom=nom; t.forme=(forme&&forme.f)||"rond"; t.couleur=(coul&&coul.c)||PALETTE[0];
+  t.taille_cm=(taille>0?taille:null); t.prefixe=prefixe;
+  t.perso=$("td-perso").classList.contains("on");
+  if(!t.couche)t.couche=coucheDe(nom);
+  sauverProjet().then(function(){
+    fermer("sh-typed"); rendreTypes(); dessinerMarqueurs(); rendreListe();
+    toast("Type enregistré : "+nom);
+  })["catch"](function(e){toast("Erreur : "+e.message,5000);});
 }
 function rendreProjets(){
   dbAll("projets").then(function(l){
@@ -2139,6 +2415,26 @@ function brancher(){
   $("btn-add").addEventListener("click",function(){
     if(!S.projet)return;
     if(!FW){toast("Importez d'abord un fond de plan");return;}
+    var types=S.projet.types||[];
+    if(types.length<=1){ poserObjet(types[0]||typeDefaut()); return; }
+    /* plusieurs types : on demande d'abord QUOI poser, dernier utilisé en tête */
+    var l=types.slice().sort(function(a,b){
+      return (b.id===S.projet.dernierType)-(a.id===S.projet.dernierType);
+    });
+    $("ty-grille").innerHTML=l.map(function(t){
+      return '<button data-poser="'+esc(t.id)+'">'+apercuHTML(t.forme,t.couleur)+
+        esc(t.nom)+'<small>'+esc(t.prefixe||"")+pad3((t.compteur||0)+1)+
+        " · "+fmtTaille(t.taille_cm)+"</small></button>";
+    }).join("");
+    ouvrir("sh-type");
+  });
+  $("ty-grille").addEventListener("click",function(e){
+    var b=e.target.closest("[data-poser]"); if(!b)return;
+    var t=typeParId(b.dataset.poser); if(!t)return;
+    fermer("sh-type");
+    poserObjet(t);
+  });
+  function poserObjet(type){
     var c=cale(), p=positionFraiche(), dep=null, txt=null;
     if(c&&p){
       var xy=latLonVersPlan(p.lat,p.lon,c);
@@ -2147,11 +2443,11 @@ function brancher(){
         txt="Repère placé sur votre position GPS (± "+Math.round(p.acc)+" m). Ajustez-le, puis validez.";
       }
     }
-    demarrerPose({etiquette:(S.projet.prefixe||"BD-")+pad3((S.projet.compteur||0)+1),
-      depart:dep, texte:txt,
-      onOk:function(x,y){ nouveauPoint(x,y).then(function(p){ ouvrirFiche(p.id); })
-        ["catch"](function(e){toast("Boîte non enregistrée : "+e.message,6000);}); }});
-  });
+    demarrerPose({etiquette:(type.prefixe||"OBJ-")+pad3((type.compteur||0)+1),
+      forme:type.forme, depart:dep, texte:txt,
+      onOk:function(x,y){ nouveauPoint(x,y,type).then(function(p){ ouvrirFiche(p.id); })
+        ["catch"](function(e){toast("Objet non enregistré : "+e.message,6000);}); }});
+  }
   $("b-pose-annul").addEventListener("click",function(){
     var f=pose&&pose.onAnnul; annulerPose(); if(f)f();
   });
@@ -2229,13 +2525,58 @@ function brancher(){
 
   /* --- réglages --- */
   $("b-rg-save").addEventListener("click",function(){
-    var n=($("rg-i-nom").value||"").trim(), p=($("rg-i-prefixe").value||"").trim();
+    var n=($("rg-i-nom").value||"").trim();
     if(!n){toast("Le nom du site est obligatoire");return;}
-    S.projet.nom=n; S.projet.prefixe=p||"BD-";
+    S.projet.nom=n;
     sauverProjet().then(function(){
-      $("hd-site").textContent=n; majReglages(); toast("Réglages enregistrés");
+      $("hd-site").textContent=n; majReglages(); toast("Nom enregistré");
     });
   });
+
+  /* --- types d'objets --- */
+  $("rg-types").addEventListener("click",function(e){
+    var d=e.target.closest("[data-edit-type]"); if(!d)return;
+    var t=typeParId(d.dataset.editType); if(t)ouvrirEditeurType(t);
+  });
+  $("b-nouveau-type").addEventListener("click",function(){ouvrirEditeurType(null);});
+  $("td-forme").addEventListener("click",function(e){
+    var b=e.target.closest("[data-f]"); if(!b)return;
+    qsa("#td-forme button").forEach(function(o){o.classList.toggle("on-forme",o===b);});
+  });
+  $("td-couleur").addEventListener("click",function(e){
+    var b=e.target.closest("[data-c]"); if(!b)return;
+    qsa("#td-couleur button").forEach(function(o){o.classList.toggle("on",o===b);});
+  });
+  $("td-perso").addEventListener("click",function(){$("td-perso").classList.toggle("on");});
+  $("td-ok").addEventListener("click",enregistrerType);
+  $("td-suppr").addEventListener("click",function(){
+    var t=typeEdit?typeParId(typeEdit):null; if(!t)return;
+    var n=nbObjetsDuType(t.id);
+    if(n){toast("Impossible : "+n+" objet"+(n>1?"s":"")+" de ce type sur le plan",5000);return;}
+    if(!confirm("Supprimer le type « "+t.nom+" » ?"))return;
+    S.projet.types=S.projet.types.filter(function(x){return x.id!==t.id;});
+    sauverProjet().then(function(){fermer("sh-typed");rendreTypes();toast("Type supprimé");});
+  });
+
+  /* --- apparence dans la fiche (type + réglages perso) --- */
+  $("fi-type").addEventListener("change",function(){
+    var p=null;
+    for(var i=0;i<S.points.length;i++) if(S.points[i].id===fiche.id) p=S.points[i];
+    var t=typeParId($("fi-type").value);
+    if(p&&t){ majFichePerso(p,t); $("fi-couche").textContent=t.couche||"objets"; }
+    ficheModifiee(false);
+  });
+  $("fi-p-forme").addEventListener("click",function(e){
+    var b=e.target.closest("[data-f]"); if(!b)return;
+    qsa("#fi-p-forme button").forEach(function(o){o.classList.toggle("on-forme",o===b);});
+    ficheModifiee(false);
+  });
+  $("fi-p-couleur").addEventListener("click",function(e){
+    var b=e.target.closest("[data-c]"); if(!b)return;
+    qsa("#fi-p-couleur button").forEach(function(o){o.classList.toggle("on",o===b);});
+    ficheModifiee(false);
+  });
+  $("fi-p-taille").addEventListener("change",function(){ficheModifiee(false);});
   $("b-import-fond").addEventListener("click",function(){$("f-fond").click();});
   $("b-import-fond2").addEventListener("click",function(){$("f-fond").click();});
   $("f-fond").addEventListener("change",function(e){
@@ -2256,7 +2597,7 @@ function brancher(){
   });
   $("b-suppr-fond").addEventListener("click",function(){
     if(!S.projet.fond){toast("Aucun fond de plan");return;}
-    if(!confirm("Retirer le fond de plan ? Les boîtes et leurs coordonnées sont conservées."))return;
+    if(!confirm("Retirer le fond de plan ? Les objets et leurs coordonnées sont conservés."))return;
     S.projet.fond=null;
     sauverProjet().then(function(){chargerFond();majReglages();toast("Fond de plan retiré");});
   });
@@ -2267,7 +2608,7 @@ function brancher(){
     ecranCalage(); ouvrir("sh-calage");
   });
   $("b-decaler").addEventListener("click",function(){
-    if(!confirm("Effacer le calage ?\nLes coordonnées GPS des boîtes seront effacées aussi"+
+    if(!confirm("Effacer le calage ?\nLes coordonnées GPS des objets seront effacées aussi"+
       " (elles en découlent) et se recalculeront toutes au prochain calage."+
       "\nLes positions sur le plan ne bougent pas."))return;
     S.projet.calage=null;
@@ -2299,7 +2640,7 @@ function brancher(){
         return recalculerLatLon(cal.calcul);
       }).then(function(n){
         fermer("sh-calage"); majReglages(); majGPS(); suivreGPS();
-        toast("Calage enregistré"+(n?(" — coordonnées des "+n+" boîtes recalculées"):""));
+        toast("Calage enregistré"+(n?(" — coordonnées des "+n+" objets recalculées"):""));
       })["catch"](function(e){toast("Erreur : "+e.message,5000);});
     }
   });
@@ -2339,7 +2680,7 @@ function brancher(){
     if(!S.projet)return;
     var n=S.projet.nom;
     if(!confirm("Supprimer le projet « "+n+" », ses "+S.points.length+
-      " boîte(s), ses photos et son fond de plan ?\n\nCette action est définitive."))return;
+      " objet(s), ses photos et son fond de plan ?\n\nCette action est définitive."))return;
     if(!confirm("Dernière confirmation : tout sera perdu pour « "+n+" ».\nAvez-vous exporté une sauvegarde ?"))return;
     var id=S.projet.id;
     dbDelPar("photos","projetId",id)

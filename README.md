@@ -1,10 +1,18 @@
-# SC Carto v1.0
+# SC Carto v1.1
 
 Application de cartographie terrain de **Sari-Concept** (agence de l'Orne).
 
-Recenser les **boîtes de dérivation** sur le plan d'une usine, depuis un smartphone,
-en marchant dans le bâtiment. Hors ligne, sans compte, sans serveur :
+Recenser des **objets** sur le plan d'une usine — boîtes de dérivation, BAES,
+canalis, points de rapport Q18… — depuis un smartphone, en marchant dans le
+bâtiment. Hors ligne, sans compte, sans serveur :
 **toutes les données restent dans le téléphone**.
+
+Depuis la v1.1, chaque projet a son **catalogue de types d'objets** : un type =
+une forme (rond, carré, triangle), une couleur, une **dimension réelle en
+centimètres** et un préfixe de numérotation. Sur un plan calé, les objets sont
+dessinés à leur taille réelle — un canalis de 3 m fait 3 m — et deviennent de
+petits repères discrets quand on dézoome. Dans le DXF de sortie, chaque type a
+son propre calque (`SC_BAES`, `SC_CANALIS`…), avec sa forme et sa taille.
 
 Le dépôt contient deux choses indépendantes :
 
