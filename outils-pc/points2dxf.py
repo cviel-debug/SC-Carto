@@ -206,14 +206,34 @@ def main():
         return rayon_defaut
 
     # ---- dessin : la forme du releve est respectee ------------------------- #
+    def tourne(points_xy, cx, cy, angle_deg):
+        """Rotation autour du centre. L'angle du releve est mesure a l'ecran
+        (y vers le bas) : dans le repere DXF (y vers le haut), il s'inverse."""
+        a = math.radians(-(angle_deg or 0))
+        co, si = math.cos(a), math.sin(a)
+        return [(cx + (px - cx) * co - (py - cy) * si,
+                 cy + (px - cx) * si + (py - cy) * co) for px, py in points_xy]
+
     def dessiner(p, x, y, r, attr):
         forme = p.get("forme") or "rond"
-        if forme == "carre":
-            msp.add_lwpolyline([(x - r, y - r), (x + r, y - r), (x + r, y + r), (x - r, y + r)],
-                               close=True, dxfattribs=dict(attr))
+        ang = p.get("angle") or 0
+        if forme == "rectangle":
+            # r = demi-longueur ; la demi-largeur vient de largeur_cm (repli : L/3)
+            l_cm = p.get("taille_cm")
+            w_cm = p.get("largeur_cm") or (l_cm / 3.0 if l_cm else None)
+            if unites_par_m and l_cm:
+                dl = float(l_cm) / 100.0 * unites_par_m / 2.0
+                dw = float(w_cm) / 100.0 * unites_par_m / 2.0
+            else:
+                dl, dw = r, r / 3.0
+            coins = [(x - dl, y - dw), (x + dl, y - dw), (x + dl, y + dw), (x - dl, y + dw)]
+            msp.add_lwpolyline(tourne(coins, x, y, ang), close=True, dxfattribs=dict(attr))
+        elif forme == "carre":
+            coins = [(x - r, y - r), (x + r, y - r), (x + r, y + r), (x - r, y + r)]
+            msp.add_lwpolyline(tourne(coins, x, y, ang), close=True, dxfattribs=dict(attr))
         elif forme == "triangle":
-            msp.add_lwpolyline([(x, y + r), (x + r * 0.866, y - r * 0.5), (x - r * 0.866, y - r * 0.5)],
-                               close=True, dxfattribs=dict(attr))
+            coins = [(x, y + r), (x + r * 0.866, y - r * 0.5), (x - r * 0.866, y - r * 0.5)]
+            msp.add_lwpolyline(tourne(coins, x, y, ang), close=True, dxfattribs=dict(attr))
         else:
             msp.add_circle((x, y), r, dxfattribs=dict(attr))
             msp.add_line((x - r, y), (x + r, y), dxfattribs=dict(attr))

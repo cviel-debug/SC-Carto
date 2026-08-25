@@ -1,4 +1,4 @@
-# SC Carto v1.1
+# SC Carto v1.2
 
 Application de cartographie terrain de **Sari-Concept** (agence de l'Orne).
 
@@ -8,7 +8,7 @@ bâtiment. Hors ligne, sans compte, sans serveur :
 **toutes les données restent dans le téléphone**.
 
 Depuis la v1.1, chaque projet a son **catalogue de types d'objets** : un type =
-une forme (rond, carré, triangle), une couleur, une **dimension réelle en
+une forme — rond, carré, triangle, **rectangle orientable** (longueur × largeur) ou un **pictogramme** (éclair, prise, ampoule, flamme, eau, alerte) —, une couleur, une **dimension réelle en
 centimètres** et un préfixe de numérotation. Sur un plan calé, les objets sont
 dessinés à leur taille réelle — un canalis de 3 m fait 3 m — et deviennent de
 petits repères discrets quand on dézoome. Dans le DXF de sortie, chaque type a
