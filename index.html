@@ -2448,12 +2448,18 @@ function caAncrer(ll,sx,sy,r){
   C.lon=caLon(caX(ll.lon,C.z)-(ox*co+oy*si),C.z);
   C.lat=caLat(caY(ll.lat,C.z)-(-ox*si+oy*co),C.z);
 }
+/* Chaque niveau est ANCRÉ près de la vue courante : les tuiles y ont des
+   coordonnées locales de quelques milliers de pixels. Positionnées en absolu
+   (jusqu'à 134 millions de px au niveau 19), Safari/iPhone perd la précision
+   flottante et cesse de dessiner — c'était la carte qui « s'efface » au zoom. */
 function caNiveau(zi){
   if(!C.niveaux[zi]){
     var d=document.createElement("div");
     d.className="ca-lvl";
     $("ca-niveau").appendChild(d);
-    C.niveaux[zi]={el:d,tuiles:{}};
+    C.niveaux[zi]={el:d,tuiles:{},
+      orgX:Math.floor(caX(C.lon,zi)/256)*256,
+      orgY:Math.floor(caY(C.lat,zi)/256)*256};
   }
   return C.niveaux[zi];
 }
@@ -2482,14 +2488,22 @@ function caRedessiner(){
   var zi=clamp(Math.round(C.z-0.2),3,zmax);
   var rotDeg=C.rot*180/Math.PI;
   var niv=caNiveau(zi);
-  /* tous les niveaux encore présents suivent la vue, chacun à son échelle */
+  /* pan très long au même niveau : on ré-ancre pour que l'écart à l'origine
+     locale reste petit (les tuiles reviennent du cache immédiatement) */
+  if(Math.abs(caX(C.lon,zi)-niv.orgX)>4e5||Math.abs(caY(C.lat,zi)-niv.orgY)>4e5){
+    try{niv.el.remove();}catch(e){}
+    delete C.niveaux[zi];
+    niv=caNiveau(zi);
+  }
+  /* tous les niveaux encore présents suivent la vue, chacun à son échelle,
+     via son ancre locale — jamais de coordonnée « monde » dans le CSS */
   Object.keys(C.niveaux).forEach(function(k){
-    var zl=+k, sl=Math.pow(2,C.z-zl);
-    var cxl=caX(C.lon,zl), cyl=caY(C.lat,zl);
-    var el=C.niveaux[k].el;
+    var zl=+k, sl=Math.pow(2,C.z-zl), N=C.niveaux[k];
+    var el=N.el;
     el.style.zIndex=(zl===zi)?"2":"1";
     el.style.transform="translate("+(r.width/2)+"px,"+(r.height/2)+"px) "+
-      "rotate("+rotDeg+"deg) scale("+sl+") translate("+(-cxl)+"px,"+(-cyl)+"px)";
+      "rotate("+rotDeg+"deg) scale("+sl+") "+
+      "translate("+(N.orgX-caX(C.lon,zl))+"px,"+(N.orgY-caY(C.lat,zl))+"px)";
   });
   /* tuiles du niveau courant : on couvre le rectangle tourné via sa diagonale */
   var s=Math.pow(2,C.z-zi);
@@ -2506,7 +2520,7 @@ function caRedessiner(){
     garder[cle]=true;
     if(!niv.tuiles[cle]){
       var im=document.createElement("img");
-      im.style.left=(x*256)+"px"; im.style.top=(y*256)+"px";
+      im.style.left=(x*256-niv.orgX)+"px"; im.style.top=(y*256-niv.orgY)+"px";
       im.alt="";
       im.onload=function(){ this.classList.add("ok"); caPurgerNiveaux(zi); };
       im.onerror=function(){ C.erreurs++; caMajEtat(); };
