@@ -161,7 +161,7 @@ nav .nb{position:absolute;top:7px;left:50%;margin-left:4px;min-width:21px;height
 .ca-lvl img{position:absolute;width:256px;height:256px;display:block;
  -webkit-user-drag:none;pointer-events:none;opacity:0;transition:opacity .18s}
 .ca-lvl img.ok{opacity:1}
-#ca-pins{position:absolute;inset:0;pointer-events:none}
+#ca-pins{position:absolute;inset:0;pointer-events:none;z-index:4}
 .ca-pin{position:absolute;transform:translate(-50%,-100%);pointer-events:auto;cursor:pointer;
  display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 2px 5px rgba(0,0,0,.6))}
 .ca-pin i{width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);
@@ -170,7 +170,8 @@ nav .nb{position:absolute;top:7px;left:50%;margin-left:4px;min-width:21px;height
 .ca-pin b{margin-top:5px;font-size:13px;font-weight:800;padding:3px 9px;border-radius:8px;
  background:rgba(10,20,34,.92);color:#fff;border:1px solid rgba(255,255,255,.4);white-space:nowrap}
 #ca-dot{position:absolute;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;
- background:#2E8FFF;border:3px solid #fff;box-shadow:0 0 0 2px rgba(0,0,0,.4);pointer-events:none}
+ background:#2E8FFF;border:3px solid #fff;box-shadow:0 0 0 2px rgba(0,0,0,.4);
+ pointer-events:none;z-index:5}
 #ca-hud{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:8px;z-index:8}
 #ca-hud button{width:54px;height:54px;border-radius:var(--r);background:rgba(15,29,49,.94);
  border:2px solid var(--bd2);color:var(--tx);font-size:24px;
@@ -1198,7 +1199,7 @@ function suivreGPS(){
     geo.err=null;
     geo.last={lat:p.coords.latitude,lon:p.coords.longitude,
               acc:p.coords.accuracy||99,t:Date.now()};
-    majGPS();
+    majGPS(); majPointCarte();
   },function(e){ geo.err=e; majGPS(); },
   {enableHighAccuracy:true,maximumAge:3000,timeout:20000});
 }
@@ -1251,6 +1252,14 @@ function majGPS(){
   dot.classList.toggle("faible",faible||dehors);
   dot.style.left=xy.x+"px"; dot.style.top=xy.y+"px";
   geo.xy=xy; majCercleGPS();
+}
+/* chaque fix GPS rafraîchit aussi le point bleu de la carte, si elle est ouverte */
+function majPointCarte(){
+  try{
+    if(typeof C==="undefined"||!C.pret)return;
+    var v=$("v-carte");
+    if(v&&v.classList.contains("on"))caPlacerPins($("carte").getBoundingClientRect());
+  }catch(e){}
 }
 function majCercleGPS(){
   var c=cale(), p=positionFraiche(), acc=$("gps-acc");
@@ -2595,7 +2604,11 @@ function caOuvrir(){
       else if(C.pins.length){ C.lat=C.pins[0].lat; C.lon=C.pins[0].lon; C.z=16; }
       if(navigator.geolocation&&!g){
         navigator.geolocation.getCurrentPosition(function(pos){
-          if(C.bouge)return;      /* on ne recadre pas sous les doigts de l'utilisateur */
+          /* on nourrit aussi le point bleu : sans ça, la carte se centre sur
+             vous mais le point n'apparaît qu'au prochain fix du suivi */
+          geo.last={lat:pos.coords.latitude,lon:pos.coords.longitude,
+                    acc:pos.coords.accuracy||99,t:Date.now()};
+          if(C.bouge){caRedessiner();return;}   /* pas de recadrage sous les doigts */
           C.lat=pos.coords.latitude; C.lon=pos.coords.longitude; C.z=17;
           caRedessiner();
         },function(){},{ enableHighAccuracy:false, timeout:6000, maximumAge:120000 });
@@ -3149,6 +3162,8 @@ function brancher(){
     if(!navigator.geolocation){toast("Géolocalisation indisponible");return;}
     toast("Recherche de la position…");
     navigator.geolocation.getCurrentPosition(function(pos){
+      geo.last={lat:pos.coords.latitude,lon:pos.coords.longitude,
+                acc:pos.coords.accuracy||99,t:Date.now()};
       C.lat=pos.coords.latitude; C.lon=pos.coords.longitude; C.z=Math.max(C.z,17);
       caRedessiner();
     },function(){toast("Position introuvable",3500);},
@@ -3172,7 +3187,8 @@ function brancher(){
   $("b-aide").addEventListener("click",function(){ouvrir("sh-aide");});
 
   document.addEventListener("visibilitychange",function(){
-    if(document.hidden)stopGPS(); else if(S.ui.gpsSuivi&&cale())suivreGPS();
+    /* la carte aussi consomme la position : le suivi reprend même sans calage */
+    if(document.hidden)stopGPS(); else if(S.ui.gpsSuivi)suivreGPS();
   });
   window.addEventListener("beforeunload",function(){
     if($("sh-fiche").classList.contains("on"))enregistrerFiche(true);
