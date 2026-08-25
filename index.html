@@ -180,6 +180,11 @@ nav .nb{position:absolute;top:7px;left:50%;margin-left:4px;min-width:21px;height
  padding:8px 11px;border-radius:10px;background:rgba(15,29,49,.94);
  border:2px solid var(--bd2);color:var(--tx2);max-width:62%}
 #ca-horsligne{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);z-index:9}
+#ca-nouveau{position:absolute;right:16px;bottom:16px;z-index:9;width:78px;height:78px;
+ border-radius:50%;background:var(--or);color:var(--bg);font-size:44px;font-weight:800;
+ line-height:1;box-shadow:0 6px 18px rgba(0,0,0,.55),0 0 0 4px rgba(10,20,34,.5);
+ display:flex;align-items:center;justify-content:center}
+#ca-nouveau:active{transform:scale(.94)}
 #ca-attrib{position:absolute;right:6px;bottom:4px;z-index:7;font-size:10px;color:rgba(255,255,255,.75);
  background:rgba(10,20,34,.45);padding:1px 6px;border-radius:6px;pointer-events:none}
 #plan-vide{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
@@ -356,7 +361,7 @@ select{-webkit-appearance:none;appearance:none;
   <path class="tr" pathLength="1" d="M516,400 V312 L476,272 V234" style="animation-delay:.8s"/>
  </svg>
  <img class="lg" id="boot-logo" alt="Sari Concept">
- <div class="t1">SC Carto <b>v1.3</b></div>
+ <div class="t1">SC Carto <b>v1.4</b></div>
  <div class="t2">Chargement en cours<span id="boot-dots"></span></div>
 </div>
 
@@ -364,7 +369,7 @@ select{-webkit-appearance:none;appearance:none;
 <div id="app">
  <header>
   <span class="marque">SC <b>Carto</b></span>
-  <span class="badge-v">v1.3</span>
+  <span class="badge-v">v1.4</span>
   <span class="site" id="hd-site">—</span>
  </header>
 
@@ -377,6 +382,9 @@ select{-webkit-appearance:none;appearance:none;
     <div id="ca-dot" class="hide"></div>
     <div id="ca-etat" class="hide"></div>
     <div id="ca-hud">
+     <button id="ca-liste" title="Mes chantiers">
+      <svg viewBox="0 0 24 24" style="width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:2">
+       <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></button>
      <button id="ca-nord" class="hide" title="Remettre le nord en haut">
       <svg viewBox="0 0 24 24" style="width:26px;height:26px">
        <polygon points="12,2 16,12 12,10 8,12" fill="#E5484D"/>
@@ -388,6 +396,7 @@ select{-webkit-appearance:none;appearance:none;
        <circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none"/></svg></button>
     </div>
     <button class="btn or hide" id="ca-horsligne">Continuer hors réseau → vue plan</button>
+    <button id="ca-nouveau" title="Nouveau chantier ici">+</button>
     <div id="ca-attrib">IGN — Géoplateforme</div>
    </div>
   </section>
@@ -539,7 +548,7 @@ select{-webkit-appearance:none;appearance:none;
     <button class="btn plein rouge" id="b-suppr-projet">Supprimer ce projet</button>
 
     <div class="pied">
-     <b>SC Carto v1.3</b><br>
+     <b>SC Carto v1.4</b><br>
      Développé par Sari-Concept — Agence de l'Orne<br>
      Toutes les données restent dans ce téléphone.
     </div>
@@ -630,6 +639,27 @@ select{-webkit-appearance:none;appearance:none;
  <div class="sh-top"><h2>Projets</h2><button class="x" data-close="sh-projets">✕</button></div>
  <div class="sh-body" id="pr-liste"></div>
  <div class="sh-bas"><button class="btn or plein" id="b-nouveau-projet">+ Nouveau projet</button></div>
+</div></div>
+
+<div class="sheet" id="sh-chantier"><div>
+ <div class="sh-top"><h2>Nouveau chantier ici</h2><button class="x" data-close="sh-chantier">✕</button></div>
+ <div class="sh-body">
+  <p class="info">La vue cadrée à l'écran devient le <b>fond de plan</b> du chantier :
+   une photo aérienne <b>déjà calée</b> — position, échelle et orientation connues.
+   Le chantier fonctionne ensuite entièrement hors ligne.</p>
+  <div class="carte">
+   <div class="kv"><b>Zone cadrée</b><span id="nc-zone">—</span></div>
+   <div class="kv" style="border:0"><b>Précision de l'image</b><span id="nc-res">—</span></div>
+  </div>
+  <label class="champ"><span>Nom du client / site</span>
+   <input type="text" id="nc-nom" placeholder="PALM Mortagne — cour extérieure"></label>
+  <label class="champ"><span>Note (facultatif)</span>
+   <input type="text" id="nc-note" placeholder="contact, accès, code portail…"></label>
+ </div>
+ <div class="sh-bas">
+  <button class="btn" data-close="sh-chantier">Annuler</button>
+  <button class="btn or" id="nc-creer">Créer le chantier</button>
+ </div>
 </div></div>
 
 <div class="sheet" id="sh-type"><div>
@@ -760,12 +790,12 @@ select{-webkit-appearance:none;appearance:none;
 
 <script>
 /* =========================================================================
-   SC Carto v1.3 — Sari-Concept, agence de l'Orne
+   SC Carto v1.4 — Sari-Concept, agence de l'Orne
    PWA autonome : aucune dépendance réseau, aucune donnée ne quitte l'appareil.
    ========================================================================= */
 (function(){
 "use strict";
-var VERSION="1.3";
+var VERSION="1.4";
 var LOGO="data:image/png;base64,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";
 
 /* ---------------------------------------------------------------- outils */
@@ -2113,9 +2143,14 @@ function rendreProjets(){
     var h="";
     l.forEach(function(p){
       var actif=S.projet&&p.id===S.projet.id;
+      var ll=projetLatLon(p);
       h+='<div class="ligne" style="'+(actif?"border-color:var(--or)":"")+'" data-projet="'+esc(p.id)+'">'+
          '<span class="txt"><b>'+esc(p.nom)+(actif?' <span style="color:#f5b301">•</span>':'')+'</b>'+
-         '<small>modifié le '+fmtDate(p.modifie)+'</small></span>'+
+         '<small>'+(p.note?esc(p.note)+' · ':'')+'modifié le '+fmtDate(p.modifie)+'</small></span>'+
+         (ll?('<button class="mini" data-voler="'+ll.lat.toFixed(7)+','+ll.lon.toFixed(7)+
+              '" title="Voir sur la carte">'+
+              '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/>'+
+              '<path d="M3.6 9h16.8M3.6 15h16.8M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg></button>'):'')+
          '<button class="mini" data-renommer="'+esc(p.id)+'" title="Renommer">'+
          '<svg viewBox="0 0 24 24"><path d="M4 20h4l10-10-4-4L4 16zM14 6l4 4"/></svg></button></div>';
     });
@@ -2670,6 +2705,84 @@ function caGestes(){
   },{passive:false});
 }
 
+/* ---- nouveau chantier depuis la carte : la vue cadrée devient un fond calé ----
+   Les tuiles sont rechargées en mode CORS (l'IGN l'autorise) et assemblées sur un
+   canvas avec exactement la même transformation que l'affichage ; le calage est
+   déduit de deux coins de l'image — la carte sait où est chaque pixel. */
+function caResolution(){        /* mètres par pixel d'écran au centre de la vue */
+  return 40075016.686*Math.cos(C.lat*Math.PI/180)/(256*Math.pow(2,C.z));
+}
+function capturerCarte(){
+  var carte=$("carte"), r=carte.getBoundingClientRect();
+  var k=clamp(Math.floor((4096/Math.max(r.width,r.height))*2)/2,1,2);
+  var outW=Math.round(r.width*k), outH=Math.round(r.height*k);
+  var zc=clamp(Math.round(C.z),3,CA_URL.photo.zmax);
+  var s=Math.pow(2,C.z-zc)*k;
+  var cx=caX(C.lon,zc), cy=caY(C.lat,zc);
+  var co=Math.cos(C.rot), si=Math.sin(C.rot);
+  var demi=Math.hypot(outW,outH)/2/s;
+  var n=Math.pow(2,zc);
+  var x0=Math.floor((cx-demi)/256), x1=Math.floor((cx+demi)/256);
+  var y0=Math.floor((cy-demi)/256), y1=Math.floor((cy+demi)/256);
+  var jobs=[];
+  for(var x=x0;x<=x1;x++)for(var y=y0;y<=y1;y++){
+    if(y<0||y>=n)continue;
+    var xw=((x%n)+n)%n;
+    (function(x,y,xw){
+      jobs.push(
+        fetch("https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0"+
+          "&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image%2Fjpeg&TILEMATRIX="+zc+
+          "&TILEROW="+y+"&TILECOL="+xw+"&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&cap=1",{mode:"cors"})
+        .then(function(rep){ if(!rep.ok)throw new Error("tuile "+rep.status); return rep.blob(); })
+        .then(function(b){ return createImageBitmap(b); })
+        .then(function(bmp){ return {x:x,y:y,bmp:bmp}; })
+      );
+    })(x,y,xw);
+  }
+  if(jobs.length>140)return Promise.reject(new Error("Zone trop large : zoomez davantage avant de créer le chantier"));
+  return Promise.all(jobs).then(function(tuiles){
+    var cv=document.createElement("canvas");
+    cv.width=outW; cv.height=outH;
+    var g=cv.getContext("2d");
+    g.fillStyle="#20364F"; g.fillRect(0,0,outW,outH);
+    g.setTransform(s*co, s*si, -s*si, s*co,
+                   outW/2-s*(co*cx-si*cy), outH/2-s*(si*cx+co*cy));
+    tuiles.forEach(function(t){
+      g.drawImage(t.bmp,t.x*256,t.y*256,256.6,256.6);   /* léger recouvrement anti-jointures */
+      if(t.bmp.close)t.bmp.close();
+    });
+    return new Promise(function(res,rej){
+      cv.toBlob(function(b){ b?res(b):rej(new Error("Assemblage impossible")); },"image/jpeg",0.88);
+    });
+  }).then(function(blob){
+    /* calage par deux coins opposés, via la machinerie existante */
+    var ll1=caEcranVersLatLon(0,r.height,r);        /* bas-gauche  → pixel (0,outH) */
+    var ll2=caEcranVersLatLon(r.width,0,r);         /* haut-droit  → pixel (outW,0) */
+    var calage=calculerCalage({x:0,y:outH,lat:ll1.lat,lon:ll1.lon,acc:null},
+                              {x:outW,y:0,lat:ll2.lat,lon:ll2.lon,acc:null});
+    if(!calage)throw new Error("Calage impossible sur cette vue");
+    return {blob:blob,largeur:outW,hauteur:outH,calage:calage};
+  });
+}
+function creerChantierIci(){
+  var nom=($("nc-nom").value||"").trim();
+  if(!nom){toast("Donnez un nom au chantier");return;}
+  var note=($("nc-note").value||"").trim();
+  toast("Assemblage de la photo aérienne…",9000);
+  capturerCarte().then(function(cap){
+    var p=projetVide(nom);
+    if(note)p.note=note;
+    p.fond={blob:cap.blob,nom:"carte-ign.jpg",type:"image/jpeg",
+            largeur:cap.largeur,hauteur:cap.hauteur};
+    p.calage=cap.calage;
+    return dbPut("projets",p).then(function(){return chargerProjet(p.id);});
+  }).then(function(){
+    fermer("sh-chantier");
+    allerVue("v-plan");
+    toast("Chantier créé et calé : "+S.projet.nom,4000);
+  })["catch"](function(e){toast("Création impossible : "+e.message,5500);});
+}
+
 /* ========================= DIAGNOSTIC ========================= */
 function ligneDiag(etat,titre,detail){
   var ic=etat==="ok"?"✔":(etat==="ko"?"✕":"!");
@@ -3088,6 +3201,15 @@ function brancher(){
   });
   $("b-projets").addEventListener("click",function(){rendreProjets();ouvrir("sh-projets");});
   $("pr-liste").addEventListener("click",function(e){
+    var v=e.target.closest("[data-voler]");
+    if(v){
+      var xy=v.dataset.voler.split(",");
+      fermer("sh-projets");
+      allerVue("v-carte");
+      C.lat=+xy[0]; C.lon=+xy[1]; C.z=Math.max(C.z,17); C.rot=0;
+      if(C.pret)caRedessiner();
+      return;
+    }
     var r=e.target.closest("[data-renommer]");
     if(r){
       dbGet("projets",r.dataset.renommer).then(function(p){
@@ -3156,6 +3278,18 @@ function brancher(){
     C.erreurs=0; caRedessiner();
   });
   $("ca-nord").addEventListener("click",function(){ C.rot=0; caRedessiner(); });
+  $("ca-liste").addEventListener("click",function(){ rendreProjets(); ouvrir("sh-projets"); });
+  $("ca-nouveau").addEventListener("click",function(){
+    if(!navigator.onLine){toast("Il faut du réseau pour capturer la photo aérienne",4000);return;}
+    var res=caResolution();
+    var carte=$("carte"), r=carte.getBoundingClientRect();
+    $("nc-zone").textContent=fmtM(r.width*res)+" × "+fmtM(r.height*res);
+    $("nc-res").textContent=(res<0.5?((res*100).toFixed(0)+" cm/pixel"):(res.toFixed(1)+" m/pixel"))+
+      (C.z>CA_URL.photo.zmax?" (image adoucie)":"");
+    $("nc-nom").value=""; $("nc-note").value="";
+    ouvrir("sh-chantier");
+  });
+  $("nc-creer").addEventListener("click",creerChantierIci);
   $("ca-locate").addEventListener("click",function(){
     var g=positionFraiche();
     if(g){ C.lat=g.lat; C.lon=g.lon; C.z=Math.max(C.z,17); caRedessiner(); return; }

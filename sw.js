@@ -56,6 +56,9 @@ function rafraichir(cle) {
 /* Tuiles IGN : cache d'abord (une zone déjà vue s'affiche même dans un trou
    de couverture), réseau sinon, avec un plafond d'entrées élagué au fil de l'eau. */
 function servirTuile(r) {
+  /* les requêtes de capture (assemblage d'un fond) passent en direct : elles
+     sont en mode CORS et ne doivent pas croiser le cache des tuiles d'affichage */
+  if (r.url.indexOf("cap=1") >= 0) return fetch(r);
   return caches.open(TUILES).then(function (c) {
     return c.match(r).then(function (rep) {
       if (rep) return rep;
