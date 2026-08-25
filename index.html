@@ -156,9 +156,11 @@ nav .nb{position:absolute;top:7px;left:50%;margin-left:4px;min-width:21px;height
 /* --------- Vue carte (fond IGN) --------- */
 #carte{position:absolute;inset:0;overflow:hidden;background:#0E1B2C;touch-action:none;
  -webkit-user-select:none;user-select:none}
-#ca-niveau{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform}
-#ca-niveau img{position:absolute;width:256px;height:256px;display:block;
- -webkit-user-drag:none;pointer-events:none;background:#13233A}
+#ca-niveau{position:absolute;inset:0}
+.ca-lvl{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform}
+.ca-lvl img{position:absolute;width:256px;height:256px;display:block;
+ -webkit-user-drag:none;pointer-events:none;opacity:0;transition:opacity .18s}
+.ca-lvl img.ok{opacity:1}
 #ca-pins{position:absolute;inset:0;pointer-events:none}
 .ca-pin{position:absolute;transform:translate(-50%,-100%);pointer-events:auto;cursor:pointer;
  display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 2px 5px rgba(0,0,0,.6))}
@@ -374,6 +376,10 @@ select{-webkit-appearance:none;appearance:none;
     <div id="ca-dot" class="hide"></div>
     <div id="ca-etat" class="hide"></div>
     <div id="ca-hud">
+     <button id="ca-nord" class="hide" title="Remettre le nord en haut">
+      <svg viewBox="0 0 24 24" style="width:26px;height:26px">
+       <polygon points="12,2 16,12 12,10 8,12" fill="#E5484D"/>
+       <polygon points="12,22 16,12 12,14 8,12" fill="#F5F5F0"/></svg></button>
      <button id="ca-couche" title="Photo / plan">🗺️</button>
      <button id="ca-locate" title="Ma position">
       <svg viewBox="0 0 24 24" style="width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:2">
@@ -2402,12 +2408,14 @@ function capturerCalage(n){
    Fond de carte France entière (photo aérienne / plan IGN, Géoplateforme,
    licence ouverte), avec les chantiers épinglés. C'est un CONFORT réseau :
    tout le travail terrain vit dans la vue plan, qui reste 100 % hors ligne. */
-var C={pret:false, lat:46.8, lon:2.4, z:5.7, couche:"photo",
-       tuiles:{}, zi:-1, pins:[], bouge:false, erreurs:0, vue:false};
+var C={pret:false, lat:46.8, lon:2.4, z:5.7, rot:0, couche:"photo",
+       niveaux:{}, pins:[], bouge:false, erreurs:0};
 var CA_URL={
   photo:{couche:"ORTHOIMAGERY.ORTHOPHOTOS",fmt:"image/jpeg",zmax:19},
   plan:{couche:"GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2",fmt:"image/png",zmax:19}
 };
+var CA_SURZOOM=2.5;   /* au-delà de la tuile la plus fine, on agrandit l'image
+                         (même comportement que cartes.gouv.fr) */
 function caTuileURL(z,x,y){
   var c=CA_URL[C.couche];
   return "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0"+
@@ -2425,56 +2433,117 @@ function caLat(y,z){
   var n=Math.PI-2*Math.PI*y/(256*Math.pow(2,z));
   return 180/Math.PI*Math.atan(0.5*(Math.exp(n)-Math.exp(-n)));
 }
+function caZMax(){return CA_URL[C.couche].zmax+CA_SURZOOM;}
+/* écran ↔ monde, rotation comprise */
+function caEcranVersLatLon(sx,sy,r){
+  var ox=sx-r.width/2, oy=sy-r.height/2;
+  var co=Math.cos(C.rot), si=Math.sin(C.rot);
+  var wx=caX(C.lon,C.z)+ox*co+oy*si;
+  var wy=caY(C.lat,C.z)-ox*si+oy*co;
+  return {lat:caLat(wy,C.z), lon:caLon(wx,C.z)};
+}
+function caAncrer(ll,sx,sy,r){
+  var ox=sx-r.width/2, oy=sy-r.height/2;
+  var co=Math.cos(C.rot), si=Math.sin(C.rot);
+  C.lon=caLon(caX(ll.lon,C.z)-(ox*co+oy*si),C.z);
+  C.lat=caLat(caY(ll.lat,C.z)-(-ox*si+oy*co),C.z);
+}
+function caNiveau(zi){
+  if(!C.niveaux[zi]){
+    var d=document.createElement("div");
+    d.className="ca-lvl";
+    $("ca-niveau").appendChild(d);
+    C.niveaux[zi]={el:d,tuiles:{}};
+  }
+  return C.niveaux[zi];
+}
+/* l'ancien niveau reste affiché (agrandi) tant que le nouveau n'est pas prêt :
+   c'est ce qui supprime les écrans bleus pendant un zoom rapide */
+function caPurgerNiveaux(zi){
+  var courant=C.niveaux[zi];
+  if(!courant)return;
+  var pret=Object.keys(courant.tuiles).every(function(k){
+    var im=courant.tuiles[k]; return im.complete&&im.naturalWidth>0;
+  });
+  Object.keys(C.niveaux).forEach(function(k){
+    if(+k===zi)return;
+    if(pret||Math.abs(+k-zi)>2){
+      try{C.niveaux[k].el.remove();}catch(e){}
+      delete C.niveaux[k];
+    }
+  });
+}
 function caRedessiner(){
   if(!C.pret)return;
   var carte=$("carte"), r=carte.getBoundingClientRect();
   if(!r.width)return;
   var zmax=CA_URL[C.couche].zmax;
-  C.z=clamp(C.z,3,zmax+0.49);
+  C.z=clamp(C.z,3,caZMax());
   var zi=clamp(Math.round(C.z-0.2),3,zmax);
+  var rotDeg=C.rot*180/Math.PI;
+  var niv=caNiveau(zi);
+  /* tous les niveaux encore présents suivent la vue, chacun à son échelle */
+  Object.keys(C.niveaux).forEach(function(k){
+    var zl=+k, sl=Math.pow(2,C.z-zl);
+    var cxl=caX(C.lon,zl), cyl=caY(C.lat,zl);
+    var el=C.niveaux[k].el;
+    el.style.zIndex=(zl===zi)?"2":"1";
+    el.style.transform="translate("+(r.width/2)+"px,"+(r.height/2)+"px) "+
+      "rotate("+rotDeg+"deg) scale("+sl+") translate("+(-cxl)+"px,"+(-cyl)+"px)";
+  });
+  /* tuiles du niveau courant : on couvre le rectangle tourné via sa diagonale */
   var s=Math.pow(2,C.z-zi);
   var cx=caX(C.lon,zi), cy=caY(C.lat,zi);
-  var niv=$("ca-niveau");
-  if(zi!==C.zi){ niv.innerHTML=""; C.tuiles={}; C.zi=zi; }
-  niv.style.transform="translate("+(r.width/2-cx*s)+"px,"+(r.height/2-cy*s)+"px) scale("+s+")";
+  var demi=Math.hypot(r.width,r.height)/2/s;
   var n=Math.pow(2,zi);
-  var x0=Math.floor((cx-r.width/2/s)/256), x1=Math.floor((cx+r.width/2/s)/256);
-  var y0=Math.floor((cy-r.height/2/s)/256), y1=Math.floor((cy+r.height/2/s)/256);
+  var x0=Math.floor((cx-demi)/256), x1=Math.floor((cx+demi)/256);
+  var y0=Math.floor((cy-demi)/256), y1=Math.floor((cy+demi)/256);
   var garder={};
   for(var x=x0;x<=x1;x++)for(var y=y0;y<=y1;y++){
     if(y<0||y>=n)continue;
-    var xw=((x%n)+n)%n;                     /* la Terre est ronde */
-    var cle=zi+"/"+x+"/"+y;
+    var xw=((x%n)+n)%n;
+    var cle=x+"/"+y;
     garder[cle]=true;
-    if(!C.tuiles[cle]){
+    if(!niv.tuiles[cle]){
       var im=document.createElement("img");
       im.style.left=(x*256)+"px"; im.style.top=(y*256)+"px";
       im.alt="";
+      im.onload=function(){ this.classList.add("ok"); caPurgerNiveaux(zi); };
       im.onerror=function(){ C.erreurs++; caMajEtat(); };
       im.src=caTuileURL(zi,xw,y);
-      niv.appendChild(im);
-      C.tuiles[cle]=im;
+      niv.el.appendChild(im);
+      niv.tuiles[cle]=im;
     }
   }
-  Object.keys(C.tuiles).forEach(function(k){
-    if(!garder[k]){ try{C.tuiles[k].remove();}catch(e){} delete C.tuiles[k]; }
+  Object.keys(niv.tuiles).forEach(function(k){
+    if(!garder[k]){ try{niv.tuiles[k].remove();}catch(e){} delete niv.tuiles[k]; }
   });
+  caPurgerNiveaux(zi);
+  /* boussole : visible dès que le nord n'est plus en haut */
+  var b=$("ca-nord");
+  b.classList.toggle("hide",Math.abs(C.rot)<0.01);
+  b.firstElementChild.style.transform="rotate("+rotDeg+"deg)";
   caPlacerPins(r);
 }
 function caPlacerPins(r){
   var box=$("ca-pins"), h="";
-  var zc=C.z, cx=caX(C.lon,zc), cy=caY(C.lat,zc);
+  var cx=caX(C.lon,C.z), cy=caY(C.lat,C.z);
+  var co=Math.cos(C.rot), si=Math.sin(C.rot);
+  function ecran(lat,lon){
+    var dx=caX(lon,C.z)-cx, dy=caY(lat,C.z)-cy;
+    return {x:r.width/2+dx*co-dy*si, y:r.height/2+dx*si+dy*co};
+  }
   C.pins.forEach(function(p){
-    var sx=caX(p.lon,zc)-cx+r.width/2, sy=caY(p.lat,zc)-cy+r.height/2;
-    if(sx<-80||sy<-80||sx>r.width+80||sy>r.height+80)return;
-    h+='<div class="ca-pin" data-ouvrir="'+esc(p.id)+'" style="left:'+sx+'px;top:'+sy+'px">'+
+    var e=ecran(p.lat,p.lon);
+    if(e.x<-80||e.y<-80||e.x>r.width+80||e.y>r.height+80)return;
+    h+='<div class="ca-pin" data-ouvrir="'+esc(p.id)+'" style="left:'+e.x+'px;top:'+e.y+'px">'+
        '<i></i><b>'+esc(p.nom)+"</b></div>";
   });
   box.innerHTML=h;
   var d=$("ca-dot"), g=positionFraiche&&positionFraiche();
   if(g){
-    var gx=caX(g.lon,zc)-cx+r.width/2, gy=caY(g.lat,zc)-cy+r.height/2;
-    d.classList.remove("hide"); d.style.left=gx+"px"; d.style.top=gy+"px";
+    var e2=ecran(g.lat,g.lon);
+    d.classList.remove("hide"); d.style.left=e2.x+"px"; d.style.top=e2.y+"px";
   }else d.classList.add("hide");
 }
 /* centre du plan d'un projet calé, dans SON calage (pas le calage courant) */
@@ -2523,29 +2592,41 @@ function caOuvrir(){
   });
 }
 function caGestes(){
-  var el=$("carte"), doigts=new Map(), pince=null, tap=null;
+  var el=$("carte"), doigts=new Map(), pince=null, cumulRot=0, rotActive=false;
+  function pos(e){var r2=el.getBoundingClientRect();return {x:e.clientX-r2.left,y:e.clientY-r2.top,r:r2};}
   el.addEventListener("pointerdown",function(e){
     if(e.target.closest&&e.target.closest(".ca-pin"))return;
     try{el.setPointerCapture(e.pointerId);}catch(err){}
     doigts.set(e.pointerId,{x:e.clientX,y:e.clientY});
-    tap=(doigts.size===1)?{x:e.clientX,y:e.clientY}:null;
-    pince=null; C.bouge=true;
+    pince=null; cumulRot=0; rotActive=false; C.bouge=true;
   });
   el.addEventListener("pointermove",function(e){
     if(!doigts.has(e.pointerId))return;
     var av=doigts.get(e.pointerId);
     doigts.set(e.pointerId,{x:e.clientX,y:e.clientY});
     var l=[]; doigts.forEach(function(v){l.push(v);});
-    var ech=256*Math.pow(2,C.z);
+    var r2=el.getBoundingClientRect();
     if(l.length>=2){
       var d=Math.hypot(l[0].x-l[1].x,l[0].y-l[1].y);
-      if(pince&&pince.d>0){
-        C.z=clamp(C.z+Math.log2(d/pince.d),3,19.49);
+      var a=Math.atan2(l[1].y-l[0].y,l[1].x-l[0].x);
+      var mx=(l[0].x+l[1].x)/2-r2.left, my=(l[0].y+l[1].y)/2-r2.top;
+      if(pince){
+        var ll=caEcranVersLatLon(mx,my,r2);
+        if(pince.d>0)C.z=clamp(C.z+Math.log2(d/pince.d),3,caZMax());
+        var da=a-pince.a;
+        if(da>Math.PI)da-=2*Math.PI; if(da<-Math.PI)da+=2*Math.PI;
+        cumulRot+=da;
+        /* la rotation ne s'engage qu'au-delà de ~8° : un pincement ordinaire
+           ne doit pas faire tourner la carte par accident */
+        if(!rotActive&&Math.abs(cumulRot)>0.14){rotActive=true;}
+        if(rotActive)C.rot+=da;
+        caAncrer(ll,mx,my,r2);
       }
-      pince={d:d};
+      pince={d:d,a:a};
     }else{
-      C.lon=caLon(caX(C.lon,C.z)-(e.clientX-av.x),C.z);
-      C.lat=caLat(caY(C.lat,C.z)-(e.clientY-av.y),C.z);
+      var p1=pos({clientX:av.x,clientY:av.y});
+      var ll1=caEcranVersLatLon(p1.x,p1.y,p1.r);
+      caAncrer(ll1,e.clientX-r2.left,e.clientY-r2.top,r2);
     }
     caRedessiner();
   });
@@ -2554,11 +2635,15 @@ function caGestes(){
   el.addEventListener("pointercancel",fin);
   el.addEventListener("wheel",function(e){
     e.preventDefault();
-    C.z=clamp(C.z+(e.deltaY<0?0.5:-0.5),3,19.49);
+    var r2=el.getBoundingClientRect();
+    var ll=caEcranVersLatLon(e.clientX-r2.left,e.clientY-r2.top,r2);
+    C.z=clamp(C.z+(e.deltaY<0?0.5:-0.5),3,caZMax());
+    caAncrer(ll,e.clientX-r2.left,e.clientY-r2.top,r2);
     caRedessiner();
   },{passive:false});
 }
 
+/* ========================= DIAGNOSTIC ========================= */
 function ligneDiag(etat,titre,detail){
   var ic=etat==="ok"?"✔":(etat==="ko"?"✕":"!");
   return '<div class="diag"><em class="'+(etat==="ok"?"ok":(etat==="ko"?"ko":"wa"))+'">'+ic+'</em>'+
@@ -3037,8 +3122,13 @@ function brancher(){
   $("ca-couche").addEventListener("click",function(){
     C.couche=(C.couche==="photo")?"plan":"photo";
     $("ca-couche").textContent=(C.couche==="photo")?"🗺️":"📷";
-    C.zi=-1; C.erreurs=0; caRedessiner();
+    Object.keys(C.niveaux).forEach(function(k){
+      try{C.niveaux[k].el.remove();}catch(e){}
+      delete C.niveaux[k];
+    });
+    C.erreurs=0; caRedessiner();
   });
+  $("ca-nord").addEventListener("click",function(){ C.rot=0; caRedessiner(); });
   $("ca-locate").addEventListener("click",function(){
     var g=positionFraiche();
     if(g){ C.lat=g.lat; C.lon=g.lon; C.z=Math.max(C.z,17); caRedessiner(); return; }
